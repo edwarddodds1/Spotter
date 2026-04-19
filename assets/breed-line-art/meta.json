@@ -1,0 +1,18 @@
+{
+  "groodle": {
+    "w": 256,
+    "h": 682
+  },
+  "labradoodle": {
+    "w": 256,
+    "h": 682
+  },
+  "cavoodle": {
+    "w": 256,
+    "h": 682
+  },
+  "cavalier-king-charles-spaniel": {
+    "w": 256,
+    "h": 682
+  }
+}

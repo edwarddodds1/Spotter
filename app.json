@@ -1,0 +1,67 @@
+{
+  "expo": {
+    "name": "Spotter",
+    "slug": "spotter",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "scheme": "spotter",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b0b0b"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.spotter.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Spotter uses your camera so you can photograph dogs you encounter.",
+        "NSLocationWhenInUseUsageDescription": "Spotter uses your location to place scans on your journal map and calculate area leagues.",
+        "NSPhotoLibraryUsageDescription": "Spotter uses your photo library when you choose an avatar."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0b0b0b"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.spotter.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Spotter uses your camera so you can photograph dogs you encounter."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Spotter uses your photos when you choose an avatar."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Spotter uses your location to place scans on your journal map and calculate area leagues."
+        }
+      ],
+      "expo-font"
+    ]
+  }
+}
