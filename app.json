@@ -4,12 +4,12 @@
     "slug": "spotter",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/spotter-logo.png",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "scheme": "spotter",
     "splash": {
-      "image": "./assets/icon.png",
+      "image": "./assets/spotter-logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#0b0b0b"
     },
@@ -24,7 +24,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/spotter-logo.png",
         "backgroundColor": "#0b0b0b"
       },
       "edgeToEdgeEnabled": true,
@@ -38,7 +38,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/icon.png"
+      "favicon": "./assets/spotter-logo.png"
     },
     "plugins": [
       "expo-secure-store",

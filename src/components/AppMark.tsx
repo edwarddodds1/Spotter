@@ -1,7 +1,7 @@
 import { Image, type ImageProps, type ImageStyle, type StyleProp } from "react-native";
 
-/** App icon / dalmatian mark — same asset as Expo `icon`, splash, and favicon. */
-const appMark = require("../../assets/icon.png");
+/** Spotter wordmark — same asset as Expo `icon`, splash, adaptive icon, and favicon. */
+const appMark = require("../../assets/spotter-logo.png");
 
 type Props = Omit<ImageProps, "source"> & {
   size?: number;
