@@ -31,6 +31,7 @@ export function ProfileScreen() {
   const setUsername = useSpotterStore((state) => state.setUsername);
   const setUserLocation = useSpotterStore((state) => state.setUserLocation);
   const signOutDemo = useAuthStore((state) => state.signOutDemo);
+  const authSession = useAuthStore((state) => state.session);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [draftUsername, setDraftUsername] = useState(currentUser.username);
   const [draftCity, setDraftCity] = useState(currentUser.city);
@@ -77,6 +78,11 @@ export function ProfileScreen() {
     if (result.canceled) return;
     try {
       const uploaded = await uploadAvatar(currentUser.id, result.assets[0].uri);
+      if (authSession?.user?.id) {
+        const db = supabase as any;
+        await db.from("users").update({ avatar_url: uploaded }).eq("id", authSession.user.id);
+        await supabase.auth.updateUser({ data: { avatar_url: uploaded } });
+      }
       setAvatar(uploaded);
     } catch (error) {
       Alert.alert("Avatar upload failed", error instanceof Error ? error.message : "Unknown error");
@@ -86,18 +92,29 @@ export function ProfileScreen() {
   const unlockedCount = earnedBadges.length;
   const totalBadges = badgeDisplayOrder.length;
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     const next = draftUsername.trim();
     if (!next) {
       Alert.alert("Username required", "Please enter a username.");
       return;
     }
-    setUsername(next);
-    setUserLocation(draftCity, draftCountry);
-    setDraftUsername(next);
-    setDraftCity(draftCity.trim());
-    setDraftCountry(draftCountry.trim());
-    setIsEditingProfile(false);
+    const nextCity = draftCity.trim();
+    const nextCountry = draftCountry.trim();
+    try {
+      if (authSession?.user?.id) {
+        const db = supabase as any;
+        await db.from("users").update({ username: next }).eq("id", authSession.user.id);
+        await supabase.auth.updateUser({ data: { username: next, city: nextCity, country: nextCountry } });
+      }
+      setUsername(next);
+      setUserLocation(nextCity, nextCountry);
+      setDraftUsername(next);
+      setDraftCity(nextCity);
+      setDraftCountry(nextCountry);
+      setIsEditingProfile(false);
+    } catch (error) {
+      Alert.alert("Profile update failed", error instanceof Error ? error.message : "Unknown error");
+    }
   };
 
   const cancelProfileEdit = () => {
@@ -125,7 +142,7 @@ export function ProfileScreen() {
   return (
     <ScrollView className="flex-1 bg-zinc-50 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
       <View className="px-4 pb-2 pt-14">
-        <Text className="text-2xl font-bold text-black dark:text-white">Profile</Text>
+        <Text className="text-4xl font-black text-black dark:text-white">Profile</Text>
         <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Your stats, achievements, and journal.</Text>
       </View>
 
@@ -178,7 +195,7 @@ export function ProfileScreen() {
                     />
                     <Text className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Tap profile photo to update it.</Text>
                     <View className="mt-2 flex-row gap-2">
-                      <Pressable onPress={saveProfile} className="rounded-full bg-amber px-3 py-1.5">
+                      <Pressable onPress={() => void saveProfile()} className="rounded-full bg-amber px-3 py-1.5">
                         <Text className="text-xs font-semibold text-white">Save</Text>
                       </Pressable>
                       <Pressable

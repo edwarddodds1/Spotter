@@ -9,9 +9,11 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
+import { useNavigation } from "@react-navigation/native";
 
 import { UserAvatar } from "@/components/UserAvatar";
 import {
@@ -22,6 +24,8 @@ import {
 import { badgeColors } from "@/constants/theme";
 import type { League } from "@/types/app";
 import { useSpotterStore } from "@/store/useSpotterStore";
+import type { RootStackParamList } from "@/core/navigation/types";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 const tabs = ["Friends", "Area", "Global"] as const;
 
@@ -44,14 +48,20 @@ function formatLeagueEnds(endsAt: string | null): string {
 }
 
 async function copyText(text: string): Promise<boolean> {
-  if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
+  try {
+    if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    await Clipboard.setStringAsync(text);
     return true;
+  } catch {
+    return false;
   }
-  return false;
 }
 
 export function LeaguesScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Friends");
   const [leagueName, setLeagueName] = useState("");
   const [maxMembers, setMaxMembers] = useState<number>(10);
@@ -113,9 +123,10 @@ export function LeaguesScreen() {
     setMaxMembers(10);
     setCustomDays("14");
     if (fresh && url) {
+      const endsLine = fresh.endsAt ? `\nEnds: ${formatLeagueEnds(fresh.endsAt)}` : "";
       Alert.alert(
         "League created",
-        `Invite link:\n${url}\n\nCode: ${fresh.inviteCode}\nCapacity: ${fresh.maxMembers}\nEnds: ${formatLeagueEnds(fresh.endsAt)}`,
+        `Invite link:\n${url}\n\nCode: ${fresh.inviteCode}\nCapacity: ${fresh.maxMembers}${endsLine}`,
         [
           {
             text: "Copy link",
@@ -157,7 +168,7 @@ export function LeaguesScreen() {
 
   return (
     <ScrollView className="flex-1 bg-white px-4 pt-14 dark:bg-ink">
-      <Text className="text-3xl font-bold text-black dark:text-white">Leagues</Text>
+      <Text className="text-4xl font-black text-black dark:text-white">Leagues</Text>
       <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
         Weekly leaderboards reset every Monday at 00:00 AEST. Friends leagues can cap members and end on a set date.
       </Text>
@@ -259,15 +270,24 @@ export function LeaguesScreen() {
 
           <Text className="mb-3 mt-8 text-lg font-semibold text-black dark:text-white">Your leagues</Text>
           {leagues.map((league) => (
-            <View
+            <Pressable
               key={league.id}
-              className="mb-3 rounded-3xl border border-zinc-200 bg-white px-4 py-4 dark:border-border dark:bg-card"
+              onPress={() =>
+                navigation.navigate("LeagueDetail", {
+                  leagueId: league.id,
+                  leagueName: league.name,
+                  memberCount: league.memberCount,
+                  maxMembers: league.maxMembers,
+                })
+              }
+              className="mb-3 rounded-3xl border border-zinc-200 bg-white px-4 py-4 active:opacity-95 dark:border-border dark:bg-card"
             >
               <View className="flex-row items-start justify-between gap-2">
                 <View className="min-w-0 flex-1">
                   <Text className="text-base font-semibold text-black dark:text-white">{league.name}</Text>
                   <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                    {league.memberCount} / {league.maxMembers} members · ends {formatLeagueEnds(league.endsAt)}
+                    {league.memberCount} / {league.maxMembers} members
+                    {league.endsAt ? ` · ends ${formatLeagueEnds(league.endsAt)}` : ""}
                   </Text>
                 </View>
               </View>
@@ -284,33 +304,60 @@ export function LeaguesScreen() {
               <View className="mt-3 flex-row gap-2">
                 <Pressable
                   onPress={() => void copyLeagueInvite(league)}
-                  className="flex-1 rounded-2xl border border-zinc-200 bg-white py-3 dark:border-border dark:bg-zinc-950"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Copy invite link for ${league.name}`}
+                  className="h-11 flex-1 items-center justify-center rounded-2xl border border-zinc-200 bg-white active:opacity-90 dark:border-border dark:bg-zinc-950"
                 >
                   <Animated.View
                     layout={LinearTransition.springify().stiffness(260).damping(24)}
-                    className="flex-row items-center justify-center gap-1.5"
+                    className="h-5 flex-row items-center justify-center gap-1.5"
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}
                   >
                     {copiedLeagueId === league.id ? (
-                      <Animated.View entering={FadeIn.duration(140)} exiting={FadeOut.duration(140)} className="flex-row items-center gap-1.5">
+                      <Animated.View
+                        entering={FadeIn.duration(140)}
+                        exiting={FadeOut.duration(140)}
+                        className="h-5 flex-row items-center gap-1.5"
+                        style={{ flexDirection: "row", alignItems: "center" }}
+                      >
                         <MaterialCommunityIcons name="check-circle" size={16} color="#16a34a" />
-                        <Text className="text-center text-sm font-semibold text-emerald-700 dark:text-emerald-400">Copied</Text>
+                        <Text numberOfLines={1} className="text-center text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                          Link copied
+                        </Text>
                       </Animated.View>
                     ) : (
-                      <Animated.View entering={FadeIn.duration(140)} exiting={FadeOut.duration(140)} className="flex-row items-center gap-1.5">
+                      <Animated.View
+                        entering={FadeIn.duration(140)}
+                        exiting={FadeOut.duration(140)}
+                        className="h-5 flex-row items-center gap-1.5"
+                        style={{ flexDirection: "row", alignItems: "center" }}
+                      >
                         <MaterialCommunityIcons name="link-variant" size={16} color="#3f3f46" />
-                        <Text className="text-center text-sm font-semibold text-black dark:text-white">Copy link</Text>
+                        <Text numberOfLines={1} className="text-center text-sm font-semibold text-black dark:text-white">
+                          Copy invite
+                        </Text>
                       </Animated.View>
                     )}
                   </Animated.View>
                 </Pressable>
                 <Pressable
                   onPress={() => void shareLeagueInvite(league)}
-                  className="flex-1 rounded-2xl bg-amber py-3 active:opacity-90"
+                  accessibilityRole="button"
+                  accessibilityLabel={`Share invite for ${league.name}`}
+                  className="h-11 flex-1 items-center justify-center rounded-2xl bg-amber active:opacity-90"
                 >
-                  <Text className="text-center text-sm font-semibold text-white">Share</Text>
+                  <View
+                    className="h-5 flex-row items-center justify-center gap-1.5"
+                    style={{ flexDirection: "row", alignItems: "center", justifyContent: "center" }}
+                  >
+                    <MaterialCommunityIcons name="share-variant" size={16} color="#ffffff" />
+                    <Text numberOfLines={1} className="text-center text-sm font-semibold text-white">
+                      Share invite
+                    </Text>
+                  </View>
                 </Pressable>
               </View>
-            </View>
+            </Pressable>
           ))}
         </View>
       ) : null}

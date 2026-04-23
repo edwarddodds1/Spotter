@@ -1,11 +1,39 @@
 import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
 
 import { supabase } from "@/lib/supabase/client";
 
 WebBrowser.maybeCompleteAuthSession();
 
-export async function signInWithGoogle() {
+type GoogleAuthResult =
+  | { type: "redirect" }
+  | Awaited<ReturnType<typeof WebBrowser.openAuthSessionAsync>>;
+
+/**
+ * Native: in-app browser + `spotter://` redirect.
+ * Web (e.g. Vercel): full-page redirect back to this origin — custom schemes make browsers try to "download" or open nothing useful.
+ */
+export async function signInWithGoogle(): Promise<GoogleAuthResult> {
+  if (Platform.OS === "web") {
+    if (typeof window === "undefined") {
+      throw new Error("Google sign-in is only available in a browser.");
+    }
+    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+    if (error) {
+      throw error;
+    }
+    if (!data?.url) {
+      throw new Error("Google sign-in URL was not returned by Supabase.");
+    }
+    window.location.assign(data.url);
+    return { type: "redirect" };
+  }
+
   const redirectTo = AuthSession.makeRedirectUri({ scheme: "spotter" });
 
   const { data, error } = await supabase.auth.signInWithOAuth({

@@ -14,7 +14,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   session: null,
   isReady: false,
-  demoMode: true,
+  demoMode: false,
   setSession: (session) => set({ session }),
   setReady: (isReady) => set({ isReady }),
   enableDemoMode: () => set({ demoMode: true }),

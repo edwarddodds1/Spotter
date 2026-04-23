@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Image, PanResponder, Pressable, ScrollView, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { BreedCommonColours } from "@/components/BreedCommonColours";
 import { BreedMiniIcon } from "@/components/BreedMiniIcon";
@@ -113,8 +114,14 @@ export function BreedDetailScreen({ route, navigation }: Props) {
         <View className="mt-3 flex-row flex-wrap items-center gap-x-3 gap-y-2">
           <RarityBadge rarity={breed.rarity} />
           {!isUnlocked ? (
-            <Pressable onPress={() => navigation.navigate("Tabs", { screen: "SpotTab" } as never)} className="active:opacity-70">
-              <Text className="text-sm font-semibold text-amber-600 dark:text-amber-400">Open Spot</Text>
+            <Pressable
+              onPress={() => navigation.navigate("Tabs", { screen: "SpotTab" } as never)}
+              className="active:opacity-70"
+            >
+              <View className="flex-row items-center gap-1">
+                <MaterialCommunityIcons name="camera" size={14} color="#d97706" />
+                <Text className="text-sm font-semibold text-amber-600 dark:text-amber-400">Open Spot</Text>
+              </View>
             </Pressable>
           ) : null}
         </View>

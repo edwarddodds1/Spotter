@@ -20,6 +20,8 @@ export default function RootApp() {
   const setSession = useAuthStore((state) => state.setSession);
   const setReady = useAuthStore((state) => state.setReady);
   const themeMode = useSpotterStore((state) => state.themeMode);
+  const refreshFeaturedBreedForToday = useSpotterStore((state) => state.refreshFeaturedBreedForToday);
+  const setCurrentUserIdentity = useSpotterStore((state) => state.setCurrentUserIdentity);
   const { setColorScheme } = useColorScheme();
 
   useEffect(() => {
@@ -46,6 +48,31 @@ export default function RootApp() {
   useEffect(() => {
     setColorScheme(themeMode);
   }, [setColorScheme, themeMode]);
+
+  useEffect(() => {
+    if (!session?.user) return;
+    const run = async () => {
+      const db = supabase as any;
+      const { data } = await db.from("users").select("id,username,avatar_url").eq("id", session.user.id).maybeSingle();
+      const metadata = session.user.user_metadata ?? {};
+      setCurrentUserIdentity({
+        id: session.user.id,
+        username: data?.username ?? metadata.username ?? session.user.email?.split("@")[0] ?? null,
+        avatarUrl: data?.avatar_url ?? metadata.avatar_url ?? null,
+        city: metadata.city ?? null,
+        country: metadata.country ?? null,
+      });
+    };
+    void run();
+  }, [session, setCurrentUserIdentity]);
+
+  useEffect(() => {
+    refreshFeaturedBreedForToday();
+    const timer = setInterval(() => {
+      useSpotterStore.getState().refreshFeaturedBreedForToday();
+    }, 60_000);
+    return () => clearInterval(timer);
+  }, [refreshFeaturedBreedForToday]);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

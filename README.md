@@ -53,3 +53,15 @@ After deploy, verify:
 5. Map/journal sections render without runtime crashes.
 6. Supabase-backed data appears when env vars are set.
 
+## Auth/profile smoke checklist
+
+After configuring Supabase and deploying, verify:
+
+1. Sign up with email/password works (confirmation email sent if enabled).
+2. Sign in with existing email/password succeeds.
+3. Forgot password sends a reset email.
+4. Google sign-in redirects back and authenticates correctly.
+5. Edit profile username/city/country, save, then reload app — values persist.
+6. Update avatar, then reload app — avatar remains updated.
+7. With no active session, app shows auth screen (no automatic demo bypass).
+

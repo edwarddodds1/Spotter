@@ -51,8 +51,10 @@ interface SpotterState {
   journalDogs: JournalDog[];
   recentBreedIds: string[];
   featuredBreedId: string;
+  featuredBreedDateKey: string;
   badges: BadgeType[];
   friends: UserProfile[];
+  pendingFriendRequests: UserProfile[];
   leagues: League[];
   feedReactions: FeedReaction[];
   feedComments: FeedComment[];
@@ -61,6 +63,7 @@ interface SpotterState {
   setSpotDraft: (draft: Partial<SpotDraft>) => void;
   clearSpotDraft: () => void;
   addRecentBreed: (breedId: string) => void;
+  refreshFeaturedBreedForToday: () => void;
   completeScan: (input: {
     breedId: string | null;
     photoUrl: string;
@@ -77,9 +80,19 @@ interface SpotterState {
   setScanPrivate: (scanId: string, isPrivate: boolean) => void;
   assignPendingBreed: (scanId: string, breedId: string) => void;
   setAvatar: (avatarUrl: string) => void;
+  setCurrentUserIdentity: (input: {
+    id: string;
+    username?: string | null;
+    avatarUrl?: string | null;
+    city?: string | null;
+    country?: string | null;
+  }) => void;
   setUsername: (username: string) => void;
   setUserLocation: (city: string, country: string) => void;
   addFriend: (username: string) => void;
+  addLeagueFriendRequest: (username: string) => void;
+  acceptFriendRequest: (userId: string) => void;
+  declineFriendRequest: (userId: string) => void;
   createLeague: (input: CreateLeagueInput) => void;
   setThemeMode: (mode: "light" | "dark") => void;
   toggleFeedReaction: (scanId: string, kind: FeedReactionKind) => void;
@@ -113,6 +126,60 @@ function createId(prefix: string) {
 
 function normalizeName(value: string) {
   return value.trim().toLowerCase();
+}
+
+function seededRandom(seed: number): number {
+  const value = Math.sin(seed) * 10000;
+  return value - Math.floor(value);
+}
+
+function getDateKey(date = new Date()): string {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+function getFeaturedPoolForDate(breeds: Breed[], date = new Date()): Breed[] {
+  const dateKey = getDateKey(date);
+  const baseSeed = dateKey.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+
+  const commonBreeds = breeds.filter((breed) => breed.rarity === "common");
+  const uncommonBreeds = breeds.filter((breed) => breed.rarity === "uncommon");
+  const rareBreeds = breeds.filter((breed) => breed.rarity === "rare");
+
+  const rarityRoll = seededRandom(baseSeed);
+  return rarityRoll < 0.45
+    ? commonBreeds
+    : rarityRoll < 0.9
+      ? uncommonBreeds
+      : rareBreeds.length > 0
+        ? rareBreeds
+        : uncommonBreeds.length > 0
+          ? uncommonBreeds
+          : commonBreeds;
+}
+
+function pickFeaturedBreedIdForDate(breeds: Breed[], date = new Date()): string {
+  const dateKey = `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+  const baseSeed = dateKey.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const selectedPool = getFeaturedPoolForDate(breeds, date);
+
+  const indexSeed = baseSeed * 9973 + 37;
+  const selectedIndex = Math.floor(seededRandom(indexSeed) * selectedPool.length);
+  return selectedPool[selectedIndex]?.id ?? breeds[0]?.id ?? "cavoodle";
+}
+
+function pickFeaturedBreedIdForTodayNoRepeat(breeds: Breed[], date = new Date()): string {
+  if (breeds.length === 0) return "cavoodle";
+  const todayId = pickFeaturedBreedIdForDate(breeds, date);
+  const yesterday = new Date(date);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayId = pickFeaturedBreedIdForDate(breeds, yesterday);
+  if (todayId !== yesterdayId) return todayId;
+
+  const todayPool = getFeaturedPoolForDate(breeds, date);
+  const fallbackPool = todayPool.length > 1 ? todayPool : breeds;
+  const idx = fallbackPool.findIndex((breed) => breed.id === todayId);
+  if (idx === -1) return fallbackPool[0]?.id ?? todayId;
+  return fallbackPool[(idx + 1) % fallbackPool.length]?.id ?? todayId;
 }
 
 function recomputeScanBadges(scans: ScanRecord[], breeds: Breed[], userId: string): BadgeType[] {
@@ -175,6 +242,8 @@ const starterFriends: UserProfile[] = [
     country: "Australia",
   },
 ];
+
+const starterPendingFriendRequests: UserProfile[] = [];
 
 const starterScans: ScanRecord[] = [
   {
@@ -264,9 +333,11 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
   dogProfiles: starterDogProfiles,
   journalDogs: [],
   recentBreedIds: ["cavoodle", "border-collie", "golden-retriever"],
-  featuredBreedId: "cavoodle",
+  featuredBreedId: pickFeaturedBreedIdForTodayNoRepeat(breedsCatalog),
+  featuredBreedDateKey: getDateKey(),
   badges: ["first_spot", "featured_hunter", "ten_breeds"],
   friends: starterFriends,
+  pendingFriendRequests: starterPendingFriendRequests,
   leagues: [
     {
       id: "league-1",
@@ -318,6 +389,15 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
     set((state) => ({
       recentBreedIds: [breedId, ...state.recentBreedIds.filter((id) => id !== breedId)].slice(0, RECENT_BREED_LIMIT),
     })),
+  refreshFeaturedBreedForToday: () =>
+    set((state) => {
+      const todayKey = getDateKey();
+      if (state.featuredBreedDateKey === todayKey) return state;
+      return {
+        featuredBreedId: pickFeaturedBreedIdForTodayNoRepeat(state.breeds, new Date()),
+        featuredBreedDateKey: todayKey,
+      };
+    }),
   completeScan: ({
     breedId,
     photoUrl,
@@ -494,6 +574,17 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
         avatarUrl,
       },
     })),
+  setCurrentUserIdentity: (input) =>
+    set((state) => ({
+      currentUser: {
+        ...state.currentUser,
+        id: input.id,
+        username: input.username?.trim() ? input.username.trim() : state.currentUser.username,
+        avatarUrl: input.avatarUrl ?? state.currentUser.avatarUrl,
+        city: input.city?.trim() ?? state.currentUser.city,
+        country: input.country?.trim() ?? state.currentUser.country,
+      },
+    })),
   setUsername: (username) =>
     set((state) => {
       const next = username.trim();
@@ -528,6 +619,43 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
         },
       ],
       badges: state.badges.includes("social_pup") ? state.badges : [...state.badges, "social_pup"],
+    })),
+  addLeagueFriendRequest: (username) =>
+    set((state) => {
+      const trimmed = username.trim();
+      if (!trimmed) return state;
+      const normalized = trimmed.toLowerCase();
+      if (normalized === state.currentUser.username.trim().toLowerCase()) return state;
+      if (state.friends.some((f) => f.username.trim().toLowerCase() === normalized)) return state;
+      if (state.pendingFriendRequests.some((f) => f.username.trim().toLowerCase() === normalized)) return state;
+      return {
+        pendingFriendRequests: [
+          {
+            id: createId("friend-request"),
+            username: trimmed,
+            avatarUrl: null,
+            totalScans: 0,
+            createdAt: new Date().toISOString(),
+            city: "",
+            country: "",
+          },
+          ...state.pendingFriendRequests,
+        ],
+      };
+    }),
+  acceptFriendRequest: (userId) =>
+    set((state) => {
+      const request = state.pendingFriendRequests.find((item) => item.id === userId);
+      if (!request) return state;
+      return {
+        pendingFriendRequests: state.pendingFriendRequests.filter((item) => item.id !== userId),
+        friends: [...state.friends, { ...request, id: createId("friend"), createdAt: new Date().toISOString() }],
+        badges: state.badges.includes("social_pup") ? state.badges : [...state.badges, "social_pup"],
+      };
+    }),
+  declineFriendRequest: (userId) =>
+    set((state) => ({
+      pendingFriendRequests: state.pendingFriendRequests.filter((item) => item.id !== userId),
     })),
   createLeague: (input) => {
     const name = input.name.trim();

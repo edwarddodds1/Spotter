@@ -8,6 +8,9 @@ export function FriendsScreen() {
   const [username, setUsername] = useState("");
   const friends = useSpotterStore((state) => state.friends);
   const addFriend = useSpotterStore((state) => state.addFriend);
+  const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
+  const acceptFriendRequest = useSpotterStore((state) => state.acceptFriendRequest);
+  const declineFriendRequest = useSpotterStore((state) => state.declineFriendRequest);
 
   return (
     <ScrollView className="flex-1 bg-white px-4 pt-14 dark:bg-ink">
@@ -35,6 +38,37 @@ export function FriendsScreen() {
       </View>
 
       <View className="mt-6">
+        {pendingFriendRequests.length > 0 ? (
+          <View className="mb-5">
+            <Text className="mb-2 text-base font-semibold text-black dark:text-white">Friend requests</Text>
+            {pendingFriendRequests.map((request) => (
+              <View
+                key={request.id}
+                className="mb-3 flex-row items-center justify-between rounded-3xl border border-red-200 bg-red-50 px-4 py-4 dark:border-red-900/50 dark:bg-red-950/20"
+              >
+                <View className="flex-row items-center gap-3">
+                  <UserAvatar username={request.username} avatarUrl={request.avatarUrl} />
+                  <View>
+                    <Text className="font-semibold text-black dark:text-white">{request.username}</Text>
+                    <Text className="text-sm text-zinc-600 dark:text-zinc-400">Wants to connect from your league</Text>
+                  </View>
+                </View>
+                <View className="flex-row items-center gap-2">
+                  <Pressable
+                    onPress={() => declineFriendRequest(request.id)}
+                    className="rounded-full border border-zinc-300 px-3 py-1.5 dark:border-zinc-700"
+                  >
+                    <Text className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Decline</Text>
+                  </Pressable>
+                  <Pressable onPress={() => acceptFriendRequest(request.id)} className="rounded-full bg-amber px-3 py-1.5">
+                    <Text className="text-xs font-semibold text-white">Accept</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         {friends.map((friend) => (
           <View key={friend.id} className="mb-3 flex-row items-center justify-between rounded-3xl border border-zinc-200 bg-white px-4 py-4 dark:border-border dark:bg-card">
             <View className="flex-row items-center gap-3">

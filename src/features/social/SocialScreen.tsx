@@ -23,6 +23,7 @@ export function SocialScreen() {
   const dogProfiles = useSpotterStore((state) => state.dogProfiles);
   const currentUser = useSpotterStore((state) => state.currentUser);
   const friends = useSpotterStore((state) => state.friends);
+  const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
 
   const scans = useMemo(
     () => allScans.filter((scan) => !scan.isPendingBreed && scan.userId === currentUser.id),
@@ -77,8 +78,11 @@ export function SocialScreen() {
 
   return (
     <ScrollView className="flex-1 bg-zinc-50 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
+      <View className="px-4 pt-14">
+        <Text className="text-4xl font-black text-black dark:text-white">Social</Text>
+      </View>
       {/* Hero */}
-      <View className="px-4 pb-6 pt-14">
+      <View className="px-4 pb-6 pt-4">
         <View className="overflow-hidden rounded-3xl bg-white shadow-sm dark:bg-card dark:shadow-none">
           <View
             className="border-b border-zinc-100 px-5 pb-5 pt-6 dark:border-border"
@@ -107,6 +111,7 @@ export function SocialScreen() {
               >
                 <MaterialCommunityIcons name="account-group-outline" size={18} color={palette.amber} />
                 <Text className="text-sm font-semibold text-black dark:text-white">Friends</Text>
+                {pendingFriendRequests.length > 0 ? <View className="h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
               </Pressable>
             </View>
           </View>

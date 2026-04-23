@@ -26,14 +26,15 @@ const uncommonSprite = require("../../assets/uncommon-dogs.png");
 const rareLegendarySprite = require("../../assets/rare-legendary-dogs.png");
 
 /** Hex tile matches Svg viewBox 0 0 100 110 */
-const TILE_W = 72;
-const TILE_H = 78;
+const TILE_SCALE = 1.3;
+const TILE_W = 72 * TILE_SCALE;
+const TILE_H = 78 * TILE_SCALE;
 const VIEWBOX_H = 110;
 const FEET_Y_VIEWBOX = 74;
 
-const DOG_VIEWPORT_W = 56;
-const DOG_VIEWPORT_H = 45;
-const BASELINE_INSET = 7;
+const DOG_VIEWPORT_W = 56 * TILE_SCALE;
+const DOG_VIEWPORT_H = 45 * TILE_SCALE;
+const BASELINE_INSET = 7 * TILE_SCALE;
 
 /** Let the first paint commit before entry animation runs (avoids blank first rows at scroll top). */
 const ENTER_AFTER_FIRST_FRAME_MS = 17;
@@ -220,7 +221,7 @@ export function HexBreedTile({
         ) : null}
       </View>
       <Text
-        className="mt-1 max-w-[88px] text-center text-[10px] font-semibold leading-tight text-zinc-800 dark:text-zinc-200"
+        className="mt-1 max-w-[102px] text-center text-[11px] font-semibold leading-tight text-zinc-800 dark:text-zinc-200"
         numberOfLines={2}
       >
         {breed.name}

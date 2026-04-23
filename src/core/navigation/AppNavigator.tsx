@@ -9,6 +9,7 @@ import { DogdexScreen } from "@/features/dogdex/DogdexScreen";
 import { BreedDetailScreen } from "@/features/dogdex/BreedDetailScreen";
 import { PendingScanDetailScreen } from "@/features/dogdex/PendingScanDetailScreen";
 import { LeaguesScreen } from "@/features/leagues/LeaguesScreen";
+import { LeagueDetailScreen } from "@/features/leagues/LeagueDetailScreen";
 import { ProfileScreen } from "@/features/profile/ProfileScreen";
 import { SocialScreen } from "@/features/social/SocialScreen";
 import { DogProfileScreen } from "@/features/social/DogProfileScreen";
@@ -25,6 +26,8 @@ const Tab = createBottomTabNavigator<TabParamList>();
 
 function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
   const isDark = themeMode === "dark";
+  const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
+  const hasSocialNotification = pendingFriendRequests.length > 0;
   const iconByRoute: Record<keyof TabParamList, keyof typeof MaterialCommunityIcons.glyphMap> = {
     DogdexTab: "dog",
     SocialTab: "account-group",
@@ -113,6 +116,21 @@ function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
                         : "#7a7a7a"
                 }
               />
+              {route.name === "SocialTab" && hasSocialNotification ? (
+                <View
+                  style={{
+                    position: "absolute",
+                    top: 1,
+                    right: 2,
+                    width: 9,
+                    height: 9,
+                    borderRadius: 99,
+                    backgroundColor: "#ef4444",
+                    borderWidth: 1.5,
+                    borderColor: isDark ? "#0b0b0b" : "#ffffff",
+                  }}
+                />
+              ) : null}
             </View>
           );
         },
@@ -151,6 +169,8 @@ export function AppNavigator() {
           headerStyle: { backgroundColor: isDark ? "#0b0b0b" : "#ffffff" },
           headerTintColor: isDark ? "#ffffff" : "#111111",
           contentStyle: { backgroundColor: isDark ? "#0b0b0b" : "#ffffff" },
+          headerBackVisible: true,
+          headerBackButtonDisplayMode: "minimal",
         }}
       >
         <Stack.Screen name="Tabs" options={{ headerShown: false }}>
@@ -160,6 +180,32 @@ export function AppNavigator() {
         <Stack.Screen name="DogNaming" component={DogNamingScreen} options={{ title: "Name Dog" }} />
         <Stack.Screen name="BreedDetail" component={BreedDetailScreen} options={{ title: "Breed Detail" }} />
         <Stack.Screen name="PendingScanDetail" component={PendingScanDetailScreen} options={{ title: "Tag Scan" }} />
+        <Stack.Screen
+          name="LeagueDetail"
+          component={LeagueDetailScreen}
+          options={({ route }) => ({
+            title: `${route.params.leagueName} League`,
+            headerBackVisible: true,
+            headerBackButtonDisplayMode: "minimal",
+            headerRight: () => (
+              <View
+                style={{
+                  minWidth: 44,
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 999,
+                  backgroundColor: isDark ? "#18181b" : "#f4f4f5",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: "700", color: isDark ? "#e4e4e7" : "#3f3f46" }}>
+                  {route.params.memberCount}/{route.params.maxMembers}
+                </Text>
+              </View>
+            ),
+          })}
+        />
         <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: "Friends" }} />
         <Stack.Screen name="DogProfile" component={DogProfileScreen} options={{ title: "Dog Profile" }} />
         <Stack.Screen name="TopDogs" component={TopDogsScreen} options={{ title: "Top Dogs" }} />

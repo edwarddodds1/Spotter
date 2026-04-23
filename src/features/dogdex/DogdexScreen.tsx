@@ -3,7 +3,6 @@ import { FlatList, Pressable, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import Animated from "react-native-reanimated";
 
-import { AppMark } from "@/components/AppMark";
 import { FeaturedTodayCard } from "@/components/FeaturedTodayCard";
 import { HexBreedTile } from "@/components/HexBreedTile";
 import { DOGDEX_TOTAL } from "@/constants/app";
@@ -30,10 +29,7 @@ export function DogdexScreen() {
     <Animated.ScrollView
       className="flex-1 bg-zinc-50 px-4 pt-14 dark:bg-ink"
     >
-      <View className="flex-row items-center gap-2.5">
-        <AppMark size={34} />
-        <Text className="text-2xl font-bold text-black dark:text-white">Dogdex</Text>
-      </View>
+      <Text className="text-4xl font-black text-black dark:text-white">Dogdex</Text>
       <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
         {collectedCount} of {DOGDEX_TOTAL} breeds found · tap any tile for info
       </Text>
