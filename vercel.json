@@ -1,13 +1,11 @@
 {
-  "framework": null,
+  "framework": "other",
+  "buildCommand": "npm run build:web",
   "outputDirectory": "dist",
-  "routes": [
+  "rewrites": [
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/.*",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
