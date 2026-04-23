@@ -141,7 +141,7 @@ export function ProfileScreen() {
 
   return (
     <ScrollView className="flex-1 bg-zinc-50 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
-      <View className="px-4 pb-2 pt-14">
+      <View className="px-4 pb-2 pt-8">
         <Text className="text-4xl font-black text-black dark:text-white">Profile</Text>
         <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Your stats, achievements, and journal.</Text>
       </View>

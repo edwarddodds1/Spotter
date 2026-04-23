@@ -119,7 +119,7 @@ export function DogNamingScreen({ navigation }: Props) {
 
   return (
     <View className="flex-1 bg-white dark:bg-ink">
-      <ScrollView className="flex-1 px-4 pt-14" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
+      <ScrollView className="flex-1 px-4 pt-8" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 32 }}>
         <Text className="text-3xl font-bold text-black dark:text-white">Name this dog</Text>
         <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           {selectedBreed ? `Optional for ${selectedBreed.name}.` : "You can leave the breed pending and name it later too."}

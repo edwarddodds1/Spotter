@@ -78,7 +78,7 @@ export function SocialScreen() {
 
   return (
     <ScrollView className="flex-1 bg-zinc-50 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
-      <View className="px-4 pt-14">
+      <View className="px-4 pt-8">
         <Text className="text-4xl font-black text-black dark:text-white">Social</Text>
       </View>
       {/* Hero */}

@@ -32,7 +32,7 @@ export function BreedSelectorScreen({ navigation }: Props) {
   const recentBreeds = recentBreedIds.map((id) => breeds.find((breed) => breed.id === id)).filter(Boolean);
 
   return (
-    <View className="flex-1 bg-white px-4 pt-14 dark:bg-ink">
+    <View className="flex-1 bg-white px-4 pt-8 dark:bg-ink">
       <Text className="text-3xl font-bold text-black dark:text-white">Identify the breed</Text>
       <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Search across all 50 breeds or log it as pending for later.</Text>
 

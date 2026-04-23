@@ -13,7 +13,7 @@ export function FriendsScreen() {
   const declineFriendRequest = useSpotterStore((state) => state.declineFriendRequest);
 
   return (
-    <ScrollView className="flex-1 bg-white px-4 pt-14 dark:bg-ink">
+    <ScrollView className="flex-1 bg-white px-4 pt-8 dark:bg-ink">
       <Text className="text-3xl font-bold text-black dark:text-white">Friends</Text>
       <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Search usernames, send requests, and keep your social feed active.</Text>
 

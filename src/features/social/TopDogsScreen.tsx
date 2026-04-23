@@ -31,7 +31,7 @@ export function TopDogsScreen({ navigation }: Props) {
   }, [dogProfiles, scans]);
 
   return (
-    <ScrollView className="flex-1 bg-white px-4 pt-14 dark:bg-ink">
+    <ScrollView className="flex-1 bg-white px-4 pt-8 dark:bg-ink">
       <Text className="text-3xl font-bold text-black dark:text-white">Top Dogs</Text>
       <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Dogs ranked by this week&apos;s scans across all users.</Text>
       <View className="mt-6">

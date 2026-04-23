@@ -27,7 +27,7 @@ export function PendingScanDetailScreen({ navigation, route }: Props) {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white px-4 pt-14 dark:bg-ink">
+    <ScrollView className="flex-1 bg-white px-4 pt-8 dark:bg-ink">
       <Text className="text-3xl font-bold text-black dark:text-white">Tag this scan</Text>
       <Image source={{ uri: scan.photoUrl }} className="mt-4 h-64 w-full rounded-3xl" />
       <Text className="mt-5 text-sm text-zinc-600 dark:text-zinc-400">Pick the breed now and keep the original scan date, image, and coordinates.</Text>

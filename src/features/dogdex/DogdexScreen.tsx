@@ -27,7 +27,7 @@ export function DogdexScreen() {
 
   return (
     <Animated.ScrollView
-      className="flex-1 bg-zinc-50 px-4 pt-14 dark:bg-ink"
+      className="flex-1 bg-zinc-50 px-4 pt-8 dark:bg-ink"
     >
       <Text className="text-4xl font-black text-black dark:text-white">Dogdex</Text>
       <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">

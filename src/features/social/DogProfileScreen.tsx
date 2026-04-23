@@ -33,7 +33,7 @@ export function DogProfileScreen({ route }: Props) {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white px-4 pt-14 dark:bg-ink">
+    <ScrollView className="flex-1 bg-white px-4 pt-8 dark:bg-ink">
       <Text className="text-3xl font-bold text-black dark:text-white">{dog.name}</Text>
       <Text className="mt-2 text-base text-zinc-300">{breed.name}</Text>
       <Text className="mt-1 text-sm text-zinc-500">Seen {dog.totalScans} times by Spotter users</Text>

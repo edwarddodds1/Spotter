@@ -167,7 +167,7 @@ export function LeaguesScreen() {
   };
 
   return (
-    <ScrollView className="flex-1 bg-white px-4 pt-14 dark:bg-ink">
+    <ScrollView className="flex-1 bg-white px-4 pt-8 dark:bg-ink">
       <Text className="text-4xl font-black text-black dark:text-white">Leagues</Text>
       <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
         Weekly leaderboards reset every Monday at 00:00 AEST. Friends leagues can cap members and end on a set date.
