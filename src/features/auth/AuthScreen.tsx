@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -27,6 +26,7 @@ export function AuthScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authInfo, setAuthInfo] = useState<string | null>(null);
   const ltrInputStyle = { writingDirection: "ltr" as const, textAlign: "left" as const };
   const isWeb = Platform.OS === "web";
 
@@ -47,13 +47,27 @@ export function AuthScreen() {
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
+  const showAuthError = (message: string) => {
+    setAuthInfo(null);
+    setAuthError(normalizeAuthErrorMessage(message));
+  };
+
+  const showAuthInfo = (message: string) => {
+    setAuthError(null);
+    setAuthInfo(message);
+  };
+
+  const clearAuthMessages = () => {
+    setAuthError(null);
+    setAuthInfo(null);
+  };
+
   const handleEmailAuth = async () => {
     if (loading) return;
-    setAuthError(null);
+    clearAuthMessages();
     if (!isSupabaseConfigured) {
-      Alert.alert(
-        "Supabase not configured",
-        "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or EXPO_PUBLIC_SUPABASE_ANON_KEY) first.",
+      showAuthError(
+        "Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or EXPO_PUBLIC_SUPABASE_ANON_KEY), then rebuild.",
       );
       return;
     }
@@ -61,26 +75,26 @@ export function AuthScreen() {
     const nextEmail = normalizeEmail(email);
     const nextPassword = password.trim();
     if (!nextEmail || !nextPassword) {
-      Alert.alert("Missing details", "Enter both email and password.");
+      showAuthError("Enter both email and password.");
       return;
     }
     if (!isValidEmail(nextEmail)) {
-      Alert.alert("Invalid email", "Enter a valid email address.");
+      showAuthError("Enter a valid email address.");
       return;
     }
     if (nextPassword.length < 6) {
-      Alert.alert("Password too short", "Password must be at least 6 characters.");
+      showAuthError("Password must be at least 6 characters.");
       return;
     }
 
     if (isSignUp) {
       const nextUsername = username.trim();
       if (!nextUsername) {
-        Alert.alert("Username required", "Choose a username to create your account.");
+        showAuthError("Choose a username to create your account.");
         return;
       }
       if (nextUsername.length < 3 || nextUsername.length > 24) {
-        Alert.alert("Username length", "Username must be between 3 and 24 characters.");
+        showAuthError("Username must be between 3 and 24 characters.");
         return;
       }
     }
@@ -101,45 +115,49 @@ export function AuthScreen() {
         });
 
         if (error) {
-          const message = normalizeAuthErrorMessage(error.message);
-          setAuthError(message);
-          Alert.alert("Could not sign up", message);
+          showAuthError(error.message);
           return;
         }
 
         if (data.user?.id && data.session) {
+          let profileWarn: string | null = null;
           try {
             await ensureUserProfile(data.user);
           } catch {
-            Alert.alert(
-              "Account created",
-              "Your auth account was created, but profile setup failed. Try signing in once, then update your profile.",
-            );
+            profileWarn = "Profile setup had a problem — you can update it in the app.";
           }
-          Alert.alert("Account created", "You are now signed in.");
+          showAuthInfo(
+            profileWarn ? `You’re signed in. ${profileWarn}` : "Account created — you’re signed in.",
+          );
           return;
         }
 
-        Alert.alert("Check your email", "We sent a confirmation link. Verify your email, then sign in.");
+        showAuthInfo("Check your email — we sent a confirmation link. After you verify, sign in here.");
         setIsSignUp(false);
         return;
       }
 
-      const { error } = await supabase.auth.signInWithPassword({ email: nextEmail, password: nextPassword });
-      if (error) {
-        const message = normalizeAuthErrorMessage(error.message);
-        setAuthError(message);
-        Alert.alert("Could not sign in", message);
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: nextEmail,
+        password: nextPassword,
+      });
+      if (signInError) {
+        showAuthError(signInError.message);
         return;
       }
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData.session?.user) {
-        try {
-          await ensureUserProfile(sessionData.session.user);
-        } catch {
-          /* Best-effort; auth succeeded regardless. */
-        }
+      if (!signInData.session?.user) {
+        showAuthError("Sign-in did not return a session. Try again or confirm your email if required.");
+        return;
       }
+      try {
+        await ensureUserProfile(signInData.session.user);
+      } catch {
+        /* Best-effort; auth succeeded regardless. */
+      }
+      clearAuthMessages();
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "Something went wrong. Try again.";
+      showAuthError(raw);
     } finally {
       setLoading(false);
     }
@@ -147,45 +165,44 @@ export function AuthScreen() {
 
   const handleForgotPassword = async () => {
     if (!isSupabaseConfigured) {
-      Alert.alert(
-        "Supabase not configured",
-        "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or EXPO_PUBLIC_SUPABASE_ANON_KEY) first.",
+      showAuthError(
+        "Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or EXPO_PUBLIC_SUPABASE_ANON_KEY), then rebuild.",
       );
       return;
     }
     const nextEmail = normalizeEmail(email);
     if (!nextEmail) {
-      Alert.alert("Email required", "Enter your email first, then tap Forgot password.");
+      showAuthError("Enter your email first, then tap Forgot password.");
       return;
     }
     if (!isValidEmail(nextEmail)) {
-      Alert.alert("Invalid email", "Enter a valid email address.");
+      showAuthError("Enter a valid email address.");
       return;
     }
     try {
-      setAuthError(null);
+      clearAuthMessages();
       setLoading(true);
       const redirectTo = getWebAuthRedirectTo("/");
       const { error } = await supabase.auth.resetPasswordForEmail(nextEmail, redirectTo ? { redirectTo } : undefined);
       if (error) {
-        const message = normalizeAuthErrorMessage(error.message);
-        setAuthError(message);
-        Alert.alert("Reset failed", message);
+        showAuthError(error.message);
         return;
       }
+      showAuthInfo("If that email has an account, we sent a reset link. Check your inbox.");
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "Something went wrong. Try again.";
+      showAuthError(raw);
     } finally {
       setLoading(false);
     }
-    Alert.alert("Password reset sent", "Check your inbox for the reset link.");
   };
 
   const handleGoogleAuth = async () => {
     try {
-      setAuthError(null);
+      clearAuthMessages();
       if (!isSupabaseConfigured) {
-        Alert.alert(
-          "Supabase not configured",
-          "Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or EXPO_PUBLIC_SUPABASE_ANON_KEY) first.",
+        showAuthError(
+          "Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or EXPO_PUBLIC_SUPABASE_ANON_KEY), then rebuild.",
         );
         return;
       }
@@ -193,9 +210,7 @@ export function AuthScreen() {
       await signInWithGoogle();
     } catch (error) {
       const rawMessage = error instanceof Error ? error.message : "Unknown error";
-      const message = normalizeAuthErrorMessage(rawMessage);
-      setAuthError(message);
-      Alert.alert("Google sign-in failed", message);
+      showAuthError(rawMessage);
     }
   };
 
@@ -217,7 +232,7 @@ export function AuthScreen() {
             <TextInput
               value={username}
               onChangeText={(value) => {
-                setAuthError(null);
+                clearAuthMessages();
                 setUsername(value);
               }}
               autoCapitalize="none"
@@ -235,7 +250,7 @@ export function AuthScreen() {
           <TextInput
             value={email}
             onChangeText={(value) => {
-              setAuthError(null);
+              clearAuthMessages();
               setEmail(value);
             }}
             autoCapitalize="none"
@@ -253,7 +268,7 @@ export function AuthScreen() {
           <TextInput
             value={password}
             onChangeText={(value) => {
-              setAuthError(null);
+              clearAuthMessages();
               setPassword(value);
             }}
             secureTextEntry
@@ -267,11 +282,19 @@ export function AuthScreen() {
             placeholderTextColor="#71717a"
             className="rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
           />
-          <Pressable onPress={handleEmailAuth} disabled={loading} className="rounded-2xl bg-amber px-4 py-3 disabled:opacity-70">
+          <Pressable
+            onPress={() => void handleEmailAuth()}
+            disabled={loading}
+            accessibilityRole="button"
+            className="rounded-2xl bg-amber px-4 py-3 disabled:opacity-70"
+          >
             <Text className="text-center font-semibold text-white">
               {loading ? "Working..." : isSignUp ? "Create account" : "Continue with email"}
             </Text>
           </Pressable>
+          {authInfo ? (
+            <Text className="text-sm font-medium text-emerald-700 dark:text-emerald-400">{authInfo}</Text>
+          ) : null}
           {authError ? <Text className="text-sm font-medium text-red-600 dark:text-red-400">{authError}</Text> : null}
           {!isSignUp ? (
             <Pressable onPress={handleForgotPassword} disabled={loading}>
@@ -287,7 +310,7 @@ export function AuthScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              setAuthError(null);
+              clearAuthMessages();
               setIsSignUp((current) => !current);
             }}
             disabled={loading}
