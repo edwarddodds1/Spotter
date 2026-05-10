@@ -305,6 +305,44 @@ const starterScans: ScanRecord[] = [
     spotComment: null,
     isPrivate: false,
   },
+  {
+    id: "scan-friend-mel",
+    userId: "friend-1",
+    breedId: "golden-retriever",
+    photoUrl: "https://images.unsplash.com/photo-1633722715463-ad30fc994ce8?auto=format&fit=crop&w=600&q=80",
+    dogName: "Sunny",
+    dogProfileId: null,
+    locationLat: -37.8136,
+    locationLng: 144.9631,
+    locationLabel: "Melbourne, Victoria, Australia",
+    scannedAt: "2026-04-16T08:30:00.000Z",
+    isPendingBreed: false,
+    pointsAwarded: 1,
+    matchedFeaturedBreed: false,
+    coatColourId: null,
+    coatColourNote: null,
+    spotComment: "Met at the riverside path — so gentle with kids.",
+    isPrivate: false,
+  },
+  {
+    id: "scan-friend-bris",
+    userId: "friend-2",
+    breedId: "labrador-retriever",
+    photoUrl: "https://images.unsplash.com/photo-1587300003388-59208cc962cb?auto=format&fit=crop&w=600&q=80",
+    dogName: null,
+    dogProfileId: null,
+    locationLat: -27.4698,
+    locationLng: 153.0251,
+    locationLabel: "Brisbane, Queensland, Australia",
+    scannedAt: "2026-04-16T05:15:00.000Z",
+    isPendingBreed: false,
+    pointsAwarded: 1,
+    matchedFeaturedBreed: false,
+    coatColourId: null,
+    coatColourNote: null,
+    spotComment: null,
+    isPrivate: false,
+  },
 ];
 
 const starterDogProfiles: DogProfile[] = [
@@ -473,18 +511,9 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
       ? allScans.filter((item) => item.userId === state.currentUser.id && item.breedId === breedId).length
       : 0;
     const variantUnlocked = Boolean(breed && breedScanCount >= variantThresholds[breed.rarity]);
-    const distinctBreeds = new Set(allScans.filter((item) => item.breedId).map((item) => item.breedId)).size;
-    const nextBadges = new Set(state.badges);
-
-    if (allScans.length >= 1) nextBadges.add("first_spot");
-    if (matchedFeaturedBreed) nextBadges.add("featured_hunter");
-    if (distinctBreeds >= 10) nextBadges.add("ten_breeds");
-    if (distinctBreeds >= Math.ceil(DOGDEX_TOTAL * 0.25)) nextBadges.add("quarter_dex");
-    if (distinctBreeds >= Math.ceil(DOGDEX_TOTAL * 0.5)) nextBadges.add("half_dex");
-    if (distinctBreeds >= DOGDEX_TOTAL) nextBadges.add("full_dex");
-    if (allScans.length >= 100) nextBadges.add("century");
-    if (breed?.rarity === "rare") nextBadges.add("rare_finder");
-    if (breed?.rarity === "legendary") nextBadges.add("legend_spotter");
+    const hadTopDogOwner = state.badges.includes("top_dog_owner");
+    const scanBadges = recomputeScanBadges(allScans, state.breeds, state.currentUser.id);
+    const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
 
     set((current) => ({
       scans: [scan, ...current.scans],
@@ -493,7 +522,7 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
           ? current.dogProfiles.map((item) => (item.id === dogProfile?.id ? dogProfile! : item))
           : [dogProfile, ...current.dogProfiles]
         : current.dogProfiles,
-      badges: Array.from(nextBadges),
+      badges,
       weeklyPoints: current.weeklyPoints + totalPoints,
       recentBreedIds: breedId
         ? [breedId, ...current.recentBreedIds.filter((id) => id !== breedId)].slice(0, RECENT_BREED_LIMIT)
@@ -548,25 +577,30 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
     set((state) => {
       const scan = state.scans.find((s) => s.id === scanId);
       const breed = state.breeds.find((b) => b.id === breedId);
-      if (!scan || !breed) return {};
+      if (!scan || !breed || scan.userId !== state.currentUser.id) return {};
       const matchedFeatured = breed.id === state.featuredBreedId;
       const base = RARITY_POINTS[breed.rarity];
       const nextAwarded = matchedFeatured ? base * FEATURED_MULTIPLIER : base;
       const delta = nextAwarded - scan.pointsAwarded;
+      const nextScans = state.scans.map((s) =>
+        s.id === scanId
+          ? {
+              ...s,
+              breedId,
+              isPendingBreed: false,
+              matchedFeaturedBreed: matchedFeatured,
+              pointsAwarded: nextAwarded,
+            }
+          : s,
+      );
+      const hadTopDogOwner = state.badges.includes("top_dog_owner");
+      const scanBadges = recomputeScanBadges(nextScans, state.breeds, state.currentUser.id);
+      const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
       return {
-        scans: state.scans.map((s) =>
-          s.id === scanId
-            ? {
-                ...s,
-                breedId,
-                isPendingBreed: false,
-                matchedFeaturedBreed: matchedFeatured,
-                pointsAwarded: nextAwarded,
-              }
-            : s,
-        ),
+        scans: nextScans,
         recentBreedIds: [breedId, ...state.recentBreedIds.filter((id) => id !== breedId)].slice(0, RECENT_BREED_LIMIT),
         weeklyPoints: state.weeklyPoints + delta,
+        badges,
       };
     }),
   setAvatar: (avatarUrl) =>
@@ -773,13 +807,17 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
     })),
 }));
 
-export function selectCollectedBreedIds(scans: ScanRecord[]) {
-  return new Set(scans.filter((scan) => scan.breedId && !scan.isPendingBreed).map((scan) => scan.breedId as string));
+export function selectCollectedBreedIds(scans: ScanRecord[], userId: string) {
+  return new Set(
+    scans
+      .filter((scan) => scan.userId === userId && scan.breedId && !scan.isPendingBreed)
+      .map((scan) => scan.breedId as string),
+  );
 }
 
-export function selectRareFindCount(scans: ScanRecord[], breeds: Breed[]) {
+export function selectRareFindCount(scans: ScanRecord[], breeds: Breed[], userId: string) {
   const rareIds = new Set(breeds.filter((breed) => breed.rarity === "rare" || breed.rarity === "legendary").map((breed) => breed.id));
-  return scans.filter((scan) => scan.breedId && rareIds.has(scan.breedId)).length;
+  return scans.filter((scan) => scan.userId === userId && scan.breedId && rareIds.has(scan.breedId)).length;
 }
 
 export function selectNextBadges(badges: BadgeType[]) {

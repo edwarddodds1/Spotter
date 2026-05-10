@@ -25,7 +25,7 @@ export function BreedDetailScreen({ route, navigation }: Props) {
     () => breeds.find((item) => item.id === route.params.breedId),
     [breeds, route.params.breedId],
   );
-  const collectedIds = useMemo(() => selectCollectedBreedIds(allScans), [allScans]);
+  const collectedIds = useMemo(() => selectCollectedBreedIds(allScans, currentUserId), [allScans, currentUserId]);
   const isUnlocked = breed ? collectedIds.has(breed.id) : false;
 
   useEffect(() => {

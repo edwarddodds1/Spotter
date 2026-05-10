@@ -13,6 +13,24 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
 
 const isWeb = Platform.OS === "web";
 
+/** Native localStorage on web — more reliable for Supabase session than RN AsyncStorage on some static exports. */
+const webAuthStorage = {
+  getItem: (key: string) =>
+    Promise.resolve(typeof globalThis !== "undefined" && "localStorage" in globalThis ? globalThis.localStorage.getItem(key) : null),
+  setItem: (key: string, value: string) => {
+    if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
+      globalThis.localStorage.setItem(key, value);
+    }
+    return Promise.resolve();
+  },
+  removeItem: (key: string) => {
+    if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
+      globalThis.localStorage.removeItem(key);
+    }
+    return Promise.resolve();
+  },
+};
+
 /**
  * Extra context when auth requests fail with a generic network error (e.g. "Failed to fetch").
  */
@@ -40,7 +58,7 @@ export const supabase = createClient<Database>(
   supabaseKey ?? "sb_publishable_placeholder",
   {
     auth: {
-      storage: AsyncStorage,
+      storage: isWeb ? webAuthStorage : AsyncStorage,
       autoRefreshToken: true,
       persistSession: true,
       /** Web OAuth returns to this origin with hash/query; native uses deep links instead. */

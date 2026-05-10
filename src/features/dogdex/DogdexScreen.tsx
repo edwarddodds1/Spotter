@@ -19,10 +19,11 @@ export function DogdexScreen() {
   const { width } = useLayoutWindowDimensions();
   const breeds = useSpotterStore((state) => state.breeds);
   const scans = useSpotterStore((state) => state.scans);
+  const currentUserId = useSpotterStore((state) => state.currentUser.id);
   const featuredBreedId = useSpotterStore((state) => state.featuredBreedId);
-  const collectedIds = useMemo(() => selectCollectedBreedIds(scans), [scans]);
-  const pendingScans = scans.filter((scan) => scan.isPendingBreed);
-  const rareFinds = selectRareFindCount(scans, breeds);
+  const collectedIds = useMemo(() => selectCollectedBreedIds(scans, currentUserId), [scans, currentUserId]);
+  const pendingScans = scans.filter((scan) => scan.userId === currentUserId && scan.isPendingBreed);
+  const rareFinds = selectRareFindCount(scans, breeds, currentUserId);
   const collectedCount = collectedIds.size;
   const progressPct = Math.min(100, (collectedCount / DOGDEX_TOTAL) * 100);
   const featuredBreed = useMemo(() => breeds.find((b) => b.id === featuredBreedId) ?? null, [breeds, featuredBreedId]);
@@ -49,7 +50,10 @@ export function DogdexScreen() {
       </View>
 
       <View className="mt-4 flex-row gap-2">
-        <StatCard label="Scans" value={String(scans.filter((s) => !s.isPendingBreed).length)} />
+        <StatCard
+          label="Scans"
+          value={String(scans.filter((s) => s.userId === currentUserId && !s.isPendingBreed).length)}
+        />
         <StatCard label="Breeds" value={String(collectedCount)} />
         <StatCard label="Rare+" value={String(rareFinds)} />
       </View>

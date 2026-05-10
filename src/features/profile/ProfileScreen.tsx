@@ -43,7 +43,7 @@ export function ProfileScreen() {
   const [avatarPick, setAvatarPick] = useState<{ uri: string; width: number; height: number } | null>(null);
   const [avatarSourceSheetVisible, setAvatarSourceSheetVisible] = useState(false);
 
-  const collectedCount = selectCollectedBreedIds(scans).size;
+  const collectedCount = selectCollectedBreedIds(scans, currentUser.id).size;
   const badgeUnlockedSet = useMemo(() => new Set<BadgeType>(earnedBadges), [earnedBadges]);
 
   const mostRecentSpot = useMemo(() => {
