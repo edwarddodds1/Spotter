@@ -1,5 +1,7 @@
+import { getResolvedSupabaseProjectUrl } from "@/lib/supabase/client";
+
 export function getBreedReferencePhotoUrl(breedId: string) {
-  const projectUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const projectUrl = getResolvedSupabaseProjectUrl();
   if (!projectUrl) {
     return null;
   }

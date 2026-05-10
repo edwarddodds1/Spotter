@@ -88,7 +88,7 @@ export function AuthScreen() {
     clearAuthMessages();
     if (!isSupabaseConfigured) {
       showAuthError(
-        "Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or EXPO_PUBLIC_SUPABASE_ANON_KEY), then rebuild.",
+        "Supabase is not configured. Set Supabase_URL and Supabase_Publishable_Key (or EXPO_PUBLIC_* / SUPABASE_*), then rebuild.",
       );
       return;
     }
@@ -195,7 +195,7 @@ export function AuthScreen() {
   const handleForgotPassword = async () => {
     if (!isSupabaseConfigured) {
       showAuthError(
-        "Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or EXPO_PUBLIC_SUPABASE_ANON_KEY), then rebuild.",
+        "Supabase is not configured. Set Supabase_URL and Supabase_Publishable_Key (or EXPO_PUBLIC_* / SUPABASE_*), then rebuild.",
       );
       return;
     }
@@ -231,7 +231,7 @@ export function AuthScreen() {
       clearAuthMessages();
       if (!isSupabaseConfigured) {
         showAuthError(
-          "Supabase is not configured. Set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or EXPO_PUBLIC_SUPABASE_ANON_KEY), then rebuild.",
+          "Supabase is not configured. Set Supabase_URL and Supabase_Publishable_Key (or EXPO_PUBLIC_* / SUPABASE_*), then rebuild.",
         );
         return;
       }

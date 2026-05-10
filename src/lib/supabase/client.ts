@@ -1,15 +1,43 @@
 import "react-native-url-polyfill/auto";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import Constants from "expo-constants";
 import { createClient } from "@supabase/supabase-js";
 import { Platform } from "react-native";
 
 import type { Database } from "@/lib/supabase/types";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+type SupabaseExtra = { supabaseUrl?: string; supabaseKey?: string };
+
+function trimEnv(value: string | undefined): string | undefined {
+  const v = value?.trim();
+  return v ? v : undefined;
+}
+
+const extra = Constants.expoConfig?.extra as SupabaseExtra | undefined;
+
+/** Prefer `extra` on web static builds — it holds Supabase_URL / Supabase_Publishable_Key from app.config.js at build time. */
+const supabaseUrl = trimEnv(
+  extra?.supabaseUrl ??
+    process.env.Supabase_URL ??
+    process.env.EXPO_PUBLIC_SUPABASE_URL ??
+    process.env.SUPABASE_URL,
+);
+const supabaseKey = trimEnv(
+  extra?.supabaseKey ??
+    process.env.Supabase_Publishable_Key ??
+    process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_PUBLISHABLE_KEY,
+);
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+
+/** Same URL the client uses (includes Supabase_URL from Vercel via `extra`). */
+export function getResolvedSupabaseProjectUrl(): string | undefined {
+  return supabaseUrl;
+}
 
 const isWeb = Platform.OS === "web";
 
@@ -64,7 +92,9 @@ export function explainAuthNetworkFailure(): string {
     hints.push("Ad blockers and strict privacy extensions often block requests to *.supabase.co — try disabling them for this site or use another browser.");
   }
 
-  hints.push("After changing .env, restart Expo (npm run web). On Vercel, set env vars and redeploy — EXPO_PUBLIC_* is baked in at build time.");
+  hints.push(
+    "Vercel: Environment Variables — set Supabase_URL and Supabase_Publishable_Key (or EXPO_PUBLIC_* / SUPABASE_* aliases) for Production, then redeploy.",
+  );
 
   return hints.join(" ");
 }

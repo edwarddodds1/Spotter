@@ -127,7 +127,8 @@ export default function RootApp() {
               {!isSupabaseConfigured ? (
                 <View className="bg-amber px-4 py-2">
                   <Text className="text-center text-xs font-semibold text-white">
-                    Demo mode active until Supabase env variables are set.
+                    Supabase not configured in this build. On Vercel set Supabase_URL and
+                    Supabase_Publishable_Key (or EXPO_PUBLIC_* / SUPABASE_*), then redeploy.
                   </Text>
                 </View>
               ) : null}
