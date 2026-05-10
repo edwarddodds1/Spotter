@@ -6,7 +6,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { buildDogdexBreedOrder } from "@/constants/breeds";
 import { MAX_JOURNAL_DOG_FIELD_LENGTH } from "@/constants/app";
-import { palette } from "@/constants/theme";
+import { palette, rarityColors } from "@/constants/theme";
 import { useSpotterStore } from "@/store/useSpotterStore";
 import type { Breed, JournalDog, JournalDogSex } from "@/types/app";
 
@@ -21,6 +21,8 @@ function clip(s: string) {
 }
 
 export function ProfileMyDogsSection() {
+  const themeMode = useSpotterStore((state) => state.themeMode);
+  const isDark = themeMode === "dark";
   const currentUser = useSpotterStore((state) => state.currentUser);
   const breeds = useSpotterStore((state) => state.breeds);
   const journalDogs = useSpotterStore((state) => state.journalDogs);
@@ -170,54 +172,65 @@ export function ProfileMyDogsSection() {
         <View className="gap-3">
           {mine.map((dog) => {
             const br = breeds.find((b) => b.id === dog.breedId);
+            const rarityTint = br ? rarityColors[br.rarity] : rarityColors.common;
             return (
               <View
                 key={dog.id}
-                className="rounded-2xl border border-zinc-200/80 bg-white p-4 dark:border-border dark:bg-card"
+                className="overflow-hidden rounded-2xl border border-zinc-200/80 dark:border-border"
               >
-                <View className="flex-row items-start justify-between gap-2">
-                  <View className="min-w-0 flex-1 flex-row gap-3">
-                    {dog.photoUrl ? (
-                      <Image source={{ uri: dog.photoUrl }} className="h-16 w-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
-                    ) : (
-                      <View className="h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-900">
-                        <MaterialCommunityIcons name="dog" size={22} color={palette.muted} />
+                <View
+                  pointerEvents="none"
+                  className="absolute inset-0"
+                  style={{
+                    backgroundColor: rarityTint,
+                    opacity: isDark ? 0.28 : 0.18,
+                  }}
+                />
+                <View className="relative p-4">
+                  <View className="flex-row items-start justify-between gap-2">
+                    <View className="min-w-0 flex-1 flex-row gap-3">
+                      {dog.photoUrl ? (
+                        <Image source={{ uri: dog.photoUrl }} className="h-16 w-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
+                      ) : (
+                        <View className="h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-900">
+                          <MaterialCommunityIcons name="dog" size={22} color={palette.muted} />
+                        </View>
+                      )}
+                      <View className="min-w-0 flex-1">
+                        <Text className="text-base font-bold text-black dark:text-white">{dog.name}</Text>
+                        <Text className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">{br?.name ?? "Breed"}</Text>
+                        <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                          {SEX_OPTIONS.find((s) => s.id === dog.sex)?.label}
+                          {dog.ageOrBirthNote ? ` · ${dog.ageOrBirthNote}` : ""}
+                        </Text>
+                        {dog.coatDescription ? (
+                          <Text className="mt-2 text-xs leading-4 text-zinc-600 dark:text-zinc-400">
+                            Coat: {dog.coatDescription}
+                          </Text>
+                        ) : null}
+                        {dog.personalityNotes ? (
+                          <Text className="mt-1 text-xs leading-4 text-zinc-600 dark:text-zinc-400">
+                            {dog.personalityNotes}
+                          </Text>
+                        ) : null}
                       </View>
-                    )}
-                    <View className="min-w-0 flex-1">
-                      <Text className="text-base font-bold text-black dark:text-white">{dog.name}</Text>
-                      <Text className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">{br?.name ?? "Breed"}</Text>
-                      <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                        {SEX_OPTIONS.find((s) => s.id === dog.sex)?.label}
-                        {dog.ageOrBirthNote ? ` · ${dog.ageOrBirthNote}` : ""}
-                      </Text>
-                      {dog.coatDescription ? (
-                        <Text className="mt-2 text-xs leading-4 text-zinc-600 dark:text-zinc-400">
-                          Coat: {dog.coatDescription}
-                        </Text>
-                      ) : null}
-                      {dog.personalityNotes ? (
-                        <Text className="mt-1 text-xs leading-4 text-zinc-600 dark:text-zinc-400">
-                          {dog.personalityNotes}
-                        </Text>
-                      ) : null}
                     </View>
-                  </View>
-                  <View className="flex-row gap-1">
-                    <Pressable
-                      onPress={() => openEdit(dog)}
-                      className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
-                      accessibilityLabel="Edit dog"
-                    >
-                      <MaterialCommunityIcons name="pencil-outline" size={18} color={palette.amber} />
-                    </Pressable>
-                    <Pressable
-                      onPress={() => confirmRemove(dog)}
-                      className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
-                      accessibilityLabel="Remove dog"
-                    >
-                      <MaterialCommunityIcons name="trash-can-outline" size={18} color="#b91c1c" />
-                    </Pressable>
+                    <View className="flex-row gap-1">
+                      <Pressable
+                        onPress={() => openEdit(dog)}
+                        className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
+                        accessibilityLabel="Edit dog"
+                      >
+                        <MaterialCommunityIcons name="pencil-outline" size={18} color={palette.amber} />
+                      </Pressable>
+                      <Pressable
+                        onPress={() => confirmRemove(dog)}
+                        className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
+                        accessibilityLabel="Remove dog"
+                      >
+                        <MaterialCommunityIcons name="trash-can-outline" size={18} color="#b91c1c" />
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
               </View>

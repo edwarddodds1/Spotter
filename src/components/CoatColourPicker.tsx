@@ -64,16 +64,24 @@ export function CoatColourSwatch({
   selected,
   showCollectedRing,
   isOther,
+  pendingDiscovery,
 }: {
   option: CoatColourOption;
   selected: boolean;
   showCollectedRing: boolean;
   isOther?: boolean;
+  /** Dashed outline when this colour is not yet logged. */
+  pendingDiscovery?: boolean;
 }) {
   return (
     <View
-      className="h-12 w-12 overflow-hidden rounded-full border-[3px] border-black items-center justify-center"
-      style={{ backgroundColor: option.hex }}
+      className="h-12 w-12 overflow-hidden rounded-full items-center justify-center"
+      style={{
+        backgroundColor: option.hex,
+        borderWidth: pendingDiscovery ? 2 : 3,
+        borderColor: pendingDiscovery ? "#a1a1aa" : "#171717",
+        borderStyle: pendingDiscovery ? "dashed" : "solid",
+      }}
     >
       {showCollectedRing ? (
         <View

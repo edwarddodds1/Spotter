@@ -45,3 +45,31 @@ export async function uploadAvatar(userId: string, localUri: string) {
   const sep = base.includes("?") ? "&" : "?";
   return `${base}${sep}v=${Date.now()}`;
 }
+
+/** Uploads hero/header image for a breed; returns storage path for `reference_photo_url` (e.g. breed-reference/id.jpg). */
+export async function uploadBreedReferenceHeader(
+  breedId: string,
+  localUri: string,
+): Promise<{ path: string | null; error: Error | null }> {
+  if (!isSupabaseConfigured) {
+    return { path: null, error: new Error("Supabase is not configured.") };
+  }
+
+  const response = await fetch(localUri);
+  const arrayBuffer = await response.arrayBuffer();
+  const lower = localUri.toLowerCase();
+  const ext = lower.includes(".png") ? "png" : "jpg";
+  const contentType = ext === "png" ? "image/png" : "image/jpeg";
+  const objectPath = `${breedId}.${ext}`;
+
+  const { error } = await supabase.storage.from("breed-reference").upload(objectPath, arrayBuffer, {
+    contentType,
+    upsert: true,
+  });
+
+  if (error) {
+    return { path: null, error };
+  }
+
+  return { path: `breed-reference/${objectPath}`, error: null };
+}

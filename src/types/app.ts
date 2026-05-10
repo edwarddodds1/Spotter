@@ -1,3 +1,4 @@
+import type { BreedStatRatings } from "@/constants/breedStatRatings";
 import type { LeagueDurationPreset } from "@/constants/leagues";
 
 export type BreedRarity = "common" | "uncommon" | "rare" | "legendary";
@@ -33,12 +34,18 @@ export interface Breed {
   name: string;
   rarity: BreedRarity;
   points: number;
+  /** Short hero/tagline under the breed name (catalog copy). */
+  subtitle?: string;
   description: string;
   origin: string;
   temperament: string;
   size: string;
   lifespan: string;
   referencePhotoUrl: string | null;
+  /** From Supabase when all five stat columns are set; overrides static catalog for display. */
+  statRatings?: BreedStatRatings;
+  /** From Supabase when set; overrides static catalog for display. */
+  funFact?: string | null;
 }
 
 export interface UserProfile {

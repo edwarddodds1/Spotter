@@ -45,3 +45,11 @@ export const variantThresholds: Record<BreedRarity, number> = {
   rare: 30,
   legendary: 50,
 };
+
+/** Breed detail screen accent (aligned with common rarity green). */
+export const breedProfileAccent = {
+  primary: rarityColors.common,
+  primaryDark: "#0b7f73",
+  heroOverlay: "rgba(0,0,0,0.45)",
+  heroOverlayBottom: "rgba(0,0,0,0.65)",
+};

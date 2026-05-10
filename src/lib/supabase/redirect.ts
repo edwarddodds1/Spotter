@@ -1,3 +1,4 @@
+import * as AuthSession from "expo-auth-session";
 import { Platform } from "react-native";
 
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
@@ -32,4 +33,15 @@ export function getWebAuthRedirectTo(pathname = "/"): string | undefined {
   }
 
   return undefined;
+}
+
+/**
+ * `signUp` / email confirmation must send users back to a URL allowed in Supabase → Auth → Redirect URLs.
+ * Native: deep link `spotter://auth/callback` (add exact URL from logs + Expo Go `exp://…` in dev if needed).
+ */
+export function getEmailConfirmationRedirectTo(): string | undefined {
+  if (Platform.OS === "web") {
+    return getWebAuthRedirectTo("/");
+  }
+  return AuthSession.makeRedirectUri({ scheme: "spotter", path: "auth/callback" });
 }

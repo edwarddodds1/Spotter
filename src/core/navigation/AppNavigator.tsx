@@ -1,7 +1,7 @@
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 
 import { useLayoutWindowDimensions } from "@/context/WebPreviewDimensionsContext";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -27,6 +27,9 @@ import { useSpotterStore } from "@/store/useSpotterStore";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
+
+/** Horizontal gutter on web so content doesn’t sit flush against the viewport on phones. */
+const webEdgeInset = Platform.OS === "web" ? 16 : 0;
 
 function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
   const isDark = themeMode === "dark";
@@ -54,6 +57,7 @@ function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
+        sceneStyle: { paddingHorizontal: webEdgeInset },
         tabBarStyle: {
           backgroundColor: isDark ? "#0b0b0b" : "#ffffff",
           borderTopColor: isDark ? "#2a2a2a" : "#d4d4d4",
@@ -175,17 +179,40 @@ export function AppNavigator() {
             headerShadowVisible: false,
             headerStyle: { backgroundColor: isDark ? "#0b0b0b" : "#ffffff" },
             headerTintColor: isDark ? "#ffffff" : "#111111",
-            contentStyle: { backgroundColor: isDark ? "#0b0b0b" : "#ffffff" },
+            contentStyle: {
+              backgroundColor: isDark ? "#0b0b0b" : "#ffffff",
+              paddingHorizontal: webEdgeInset,
+            },
             headerBackVisible: true,
             headerBackButtonDisplayMode: "minimal",
           }}
         >
-          <Stack.Screen name="Tabs" options={{ headerShown: false }}>
+          <Stack.Screen
+            name="Tabs"
+            options={{
+              headerShown: false,
+              contentStyle: {
+                flex: 1,
+                backgroundColor: isDark ? "#0b0b0b" : "#ffffff",
+                paddingHorizontal: 0,
+              },
+            }}
+          >
             {() => <Tabs themeMode={themeMode} />}
           </Stack.Screen>
           <Stack.Screen name="BreedSelector" component={BreedSelectorScreen} options={{ title: "Select Breed" }} />
           <Stack.Screen name="DogNaming" component={DogNamingScreen} options={{ title: "Name Dog" }} />
-          <Stack.Screen name="BreedDetail" component={BreedDetailScreen} options={{ title: "Breed Detail" }} />
+          <Stack.Screen
+            name="BreedDetail"
+            component={BreedDetailScreen}
+            options={{
+              headerShown: false,
+              contentStyle: {
+                backgroundColor: isDark ? "#0b0b0b" : "#f4f4f5",
+                paddingHorizontal: 0,
+              },
+            }}
+          />
           <Stack.Screen
             name="AdminBreedEditor"
             component={AdminBreedEditorScreen}

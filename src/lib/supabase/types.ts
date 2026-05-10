@@ -32,6 +32,12 @@ export interface Database {
           size: string;
           lifespan: string;
           reference_photo_url: string | null;
+          fun_fact: string | null;
+          stat_intelligence: number | null;
+          stat_energy: number | null;
+          stat_trainability: number | null;
+          stat_shedding: number | null;
+          stat_kid_friendly: number | null;
         };
         Insert: Database["public"]["Tables"]["breeds"]["Row"];
         Update: Partial<Database["public"]["Tables"]["breeds"]["Insert"]>;

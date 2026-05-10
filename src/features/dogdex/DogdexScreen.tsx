@@ -1,9 +1,9 @@
 import { useMemo, type ReactNode } from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 
 import { useLayoutWindowDimensions } from "@/context/WebPreviewDimensionsContext";
 import { useNavigation } from "@react-navigation/native";
-import Animated from "react-native-reanimated";
+import { ScrollView } from "react-native-gesture-handler";
 
 import { FeaturedTodayCard } from "@/components/FeaturedTodayCard";
 import { HEX_TILE_WIDTH, HexBreedTile } from "@/components/HexBreedTile";
@@ -13,6 +13,14 @@ import { rarityColors } from "@/constants/theme";
 import { selectCollectedBreedIds, selectRareFindCount, useSpotterStore } from "@/store/useSpotterStore";
 
 const GRID_COLUMNS = 3;
+
+function chunkRows<T>(items: T[], columns: number): T[][] {
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += columns) {
+    rows.push(items.slice(i, i + columns));
+  }
+  return rows;
+}
 
 export function DogdexScreen() {
   const navigation = useNavigation<any>();
@@ -32,13 +40,17 @@ export function DogdexScreen() {
   const horizontalPadding = width < 360 ? 12 : 16;
 
   return (
-    <Animated.ScrollView
+    <ScrollView
       className="flex-1 bg-zinc-50 pt-8 dark:bg-ink"
       style={{ paddingHorizontal: horizontalPadding }}
-      contentContainerStyle={{ flexGrow: 1, paddingBottom: 96 }}
+      contentContainerStyle={{ paddingBottom: 96 }}
       showsVerticalScrollIndicator={false}
       showsHorizontalScrollIndicator={false}
       alwaysBounceVertical
+      bounces
+      nestedScrollEnabled
+      keyboardShouldPersistTaps="handled"
+      scrollEventThrottle={16}
     >
       <Text className="text-4xl font-black text-black dark:text-white">Dogdex</Text>
       <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
@@ -84,29 +96,31 @@ export function DogdexScreen() {
               </Text>
               <View className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
             </View>
-            <FlatList
-              scrollEnabled={false}
-              data={padded}
-              numColumns={GRID_COLUMNS}
-              columnWrapperStyle={{ justifyContent: "space-evenly" }}
-              keyExtractor={(item, index) => (item ? item.id : `pad-${rarity}-${index}`)}
-              renderItem={({ item, index }) => {
-                if (!item) {
-                  return <View className="mb-5" style={{ width: HEX_TILE_WIDTH }} />;
-                }
-
-                const unlocked = collectedIds.has(item.id);
-                const rowIndex = Math.floor(index / GRID_COLUMNS);
-                return (
-                  <HexBreedTile
-                    breed={item}
-                    unlocked={unlocked}
-                    animationDelayMs={rowIndex * 80}
-                    onPress={() => navigation.navigate("BreedDetail", { breedId: item.id })}
-                  />
-                );
-              }}
-            />
+            {chunkRows(padded, GRID_COLUMNS).map((row, rowIndex) => (
+              <View key={`${rarity}-row-${rowIndex}`} className="flex-row justify-evenly">
+                {row.map((item, colIndex) => {
+                  if (!item) {
+                    return (
+                      <View
+                        key={`${rarity}-pad-${rowIndex}-${colIndex}`}
+                        className="mb-5"
+                        style={{ width: HEX_TILE_WIDTH }}
+                      />
+                    );
+                  }
+                  const unlocked = collectedIds.has(item.id);
+                  return (
+                    <HexBreedTile
+                      key={item.id}
+                      breed={item}
+                      unlocked={unlocked}
+                      animationDelayMs={rowIndex * 80}
+                      onPress={() => navigation.navigate("BreedDetail", { breedId: item.id })}
+                    />
+                  );
+                })}
+              </View>
+            ))}
           </RevealOnScroll>
         );
       })}
@@ -132,7 +146,7 @@ export function DogdexScreen() {
         </RevealOnScroll>
       ) : null}
 
-    </Animated.ScrollView>
+    </ScrollView>
   );
 }
 

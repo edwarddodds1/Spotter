@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ActivityIndicator, Platform, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Text, View } from "react-native";
 
 import { AppMark } from "@/components/AppMark";
 import { WebPhoneFrame } from "@/components/WebPhoneFrame";
@@ -11,6 +11,7 @@ import { useColorScheme } from "nativewind";
 import { AppNavigator } from "@/core/navigation/AppNavigator";
 import { AuthScreen } from "@/features/auth/AuthScreen";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { recoverWebSessionFromUrl } from "@/lib/supabase/recoverSessionFromUrl";
 import { ensureUserProfile } from "@/lib/supabase/profile";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSpotterStore } from "@/store/useSpotterStore";
@@ -30,12 +31,18 @@ export default function RootApp() {
   useEffect(() => {
     let isMounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    const boot = async () => {
+      if (Platform.OS === "web") {
+        await recoverWebSessionFromUrl();
+      }
+      const { data } = await supabase.auth.getSession();
       if (isMounted) {
         setSession(data.session);
         setReady(true);
       }
-    });
+    };
+
+    void boot();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
@@ -48,28 +55,37 @@ export default function RootApp() {
     };
   }, [setReady, setSession]);
 
-  /** OAuth / magic-link return: URL may contain tokens or PKCE `code` before first `getSession` resolves. */
+  /** Email confirmation / magic link on native: open app via `spotter://auth/callback#access_token=…`. */
   useEffect(() => {
-    if (Platform.OS !== "web" || typeof window === "undefined") return;
-    const { hash, search } = window.location;
-    const hasAuthReturn =
-      hash.includes("access_token") ||
-      hash.includes("refresh_token") ||
-      search.includes("code=");
-    if (!hasAuthReturn) return;
+    if (Platform.OS === "web") return;
 
-    let cancelled = false;
-    const sync = async () => {
-      await new Promise((r) => setTimeout(r, 0));
-      const { data } = await supabase.auth.getSession();
-      if (cancelled || !data.session) return;
-      useAuthStore.getState().setSession(data.session);
-      useAuthStore.getState().setReady(true);
+    const applyUrl = async (url: string | null) => {
+      if (!url) return;
+      const codeMatch = url.match(/[?&#]code=([^&]+)/);
+      if (codeMatch?.[1]) {
+        const code = decodeURIComponent(codeMatch[1]);
+        await supabase.auth.exchangeCodeForSession(code);
+        return;
+      }
+      const hashIdx = url.indexOf("#");
+      const hash = hashIdx >= 0 ? url.slice(hashIdx + 1) : "";
+      const params = new URLSearchParams(hash);
+      let access_token = params.get("access_token");
+      let refresh_token = params.get("refresh_token");
+      if (!access_token || !refresh_token) {
+        const matchA = url.match(/access_token=([^&]+)/);
+        const matchR = url.match(/refresh_token=([^&]+)/);
+        access_token = matchA?.[1] ?? null;
+        refresh_token = matchR?.[1] ?? null;
+      }
+      if (access_token && refresh_token) {
+        await supabase.auth.setSession({ access_token, refresh_token });
+      }
     };
-    void sync();
-    return () => {
-      cancelled = true;
-    };
+
+    void Linking.getInitialURL().then(applyUrl);
+    const sub = Linking.addEventListener("url", (e) => void applyUrl(e.url));
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
