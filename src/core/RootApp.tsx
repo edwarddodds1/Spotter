@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 
 import { AppMark } from "@/components/AppMark";
 import { WebPhoneFrame } from "@/components/WebPhoneFrame";
@@ -24,6 +24,7 @@ export default function RootApp() {
   const themeMode = useSpotterStore((state) => state.themeMode);
   const refreshFeaturedBreedForToday = useSpotterStore((state) => state.refreshFeaturedBreedForToday);
   const setCurrentUserIdentity = useSpotterStore((state) => state.setCurrentUserIdentity);
+  const refreshBreedsFromRemote = useSpotterStore((state) => state.refreshBreedsFromRemote);
   const { setColorScheme } = useColorScheme();
 
   useEffect(() => {
@@ -47,9 +48,38 @@ export default function RootApp() {
     };
   }, [setReady, setSession]);
 
+  /** OAuth / magic-link return: URL may contain tokens or PKCE `code` before first `getSession` resolves. */
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const { hash, search } = window.location;
+    const hasAuthReturn =
+      hash.includes("access_token") ||
+      hash.includes("refresh_token") ||
+      search.includes("code=");
+    if (!hasAuthReturn) return;
+
+    let cancelled = false;
+    const sync = async () => {
+      await new Promise((r) => setTimeout(r, 0));
+      const { data } = await supabase.auth.getSession();
+      if (cancelled || !data.session) return;
+      useAuthStore.getState().setSession(data.session);
+      useAuthStore.getState().setReady(true);
+    };
+    void sync();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     setColorScheme(themeMode);
   }, [setColorScheme, themeMode]);
+
+  useEffect(() => {
+    if (!session?.user || !isSupabaseConfigured) return;
+    void refreshBreedsFromRemote();
+  }, [session?.user?.id, refreshBreedsFromRemote]);
 
   useEffect(() => {
     if (!session?.user) return;

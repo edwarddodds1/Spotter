@@ -15,17 +15,33 @@ const isWeb = Platform.OS === "web";
 
 /** Native localStorage on web — more reliable for Supabase session than RN AsyncStorage on some static exports. */
 const webAuthStorage = {
-  getItem: (key: string) =>
-    Promise.resolve(typeof globalThis !== "undefined" && "localStorage" in globalThis ? globalThis.localStorage.getItem(key) : null),
+  getItem: (key: string) => {
+    try {
+      if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
+        return Promise.resolve(globalThis.localStorage.getItem(key));
+      }
+    } catch {
+      /* Private mode / embedded browsers may block storage — session stays in memory for that tab. */
+    }
+    return Promise.resolve(null);
+  },
   setItem: (key: string, value: string) => {
-    if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
-      globalThis.localStorage.setItem(key, value);
+    try {
+      if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
+        globalThis.localStorage.setItem(key, value);
+      }
+    } catch {
+      /* Same as getItem — avoid crashing auth; persistence may fail until storage works. */
     }
     return Promise.resolve();
   },
   removeItem: (key: string) => {
-    if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
-      globalThis.localStorage.removeItem(key);
+    try {
+      if (typeof globalThis !== "undefined" && "localStorage" in globalThis) {
+        globalThis.localStorage.removeItem(key);
+      }
+    } catch {
+      /* ignore */
     }
     return Promise.resolve();
   },
@@ -59,6 +75,8 @@ export const supabase = createClient<Database>(
   {
     auth: {
       storage: isWeb ? webAuthStorage : AsyncStorage,
+      /** PKCE is the recommended SPA flow; works with email/password and OAuth return URLs. */
+      flowType: "pkce",
       autoRefreshToken: true,
       persistSession: true,
       /** Web OAuth returns to this origin with hash/query; native uses deep links instead. */

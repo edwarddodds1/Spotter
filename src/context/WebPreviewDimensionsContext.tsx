@@ -4,8 +4,8 @@ import { useWindowDimensions, type ScaledSize } from "react-native";
 const WebPreviewDimensionsContext = createContext<ScaledSize | undefined>(undefined);
 
 /**
- * Inside {@link WebPhoneFrame} on web, children should use {@link useLayoutWindowDimensions}
- * so layout matches the preview width/height (not the full browser window).
+ * Optional override for layout width/height. When absent (normal web/native), {@link useLayoutWindowDimensions}
+ * falls back to {@link useWindowDimensions}.
  */
 export function WebPreviewDimensionsProvider({
   width,

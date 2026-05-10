@@ -1,7 +1,7 @@
-import { useState } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { useEffect, useState } from "react";
 import {
   Keyboard,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -10,6 +10,7 @@ import {
   View,
   type ViewStyle,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppMark } from "@/components/AppMark";
 import { signInWithGoogle } from "@/lib/supabase/auth";
@@ -19,7 +20,10 @@ import { getWebAuthRedirectTo } from "@/lib/supabase/redirect";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export function AuthScreen() {
+  const insets = useSafeAreaInsets();
   const enableDemoMode = useAuthStore((state) => state.enableDemoMode);
+  const setAuthSession = useAuthStore((state) => state.setSession);
+  const setAuthReady = useAuthStore((state) => state.setReady);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -27,8 +31,25 @@ export function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
+  /** Extra scroll padding when keyboard is open — avoids shrinking the layout (no KeyboardAvoidingView). */
+  const [keyboardBottomInset, setKeyboardBottomInset] = useState(0);
   const ltrInputStyle = { writingDirection: "ltr" as const, textAlign: "left" as const };
   const isWeb = Platform.OS === "web";
+
+  useEffect(() => {
+    /** Android uses `softwareKeyboardLayoutMode: "pan"` so the window pans — avoid extra inset + listeners. */
+    if (isWeb || Platform.OS !== "ios") return;
+    const showSub = Keyboard.addListener("keyboardWillShow", (e) => {
+      setKeyboardBottomInset(e.endCoordinates?.height ?? 0);
+    });
+    const hideSub = Keyboard.addListener("keyboardWillHide", () => {
+      setKeyboardBottomInset(0);
+    });
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [isWeb]);
 
   const scrollViewStyle = [
     isWeb ? ({ width: "100%", flexGrow: 1, flexShrink: 1 } satisfies ViewStyle) : undefined,
@@ -120,15 +141,15 @@ export function AuthScreen() {
         }
 
         if (data.user?.id && data.session) {
-          let profileWarn: string | null = null;
           try {
             await ensureUserProfile(data.user);
           } catch {
-            profileWarn = "Profile setup had a problem — you can update it in the app.";
+            /* Profile row is best-effort; still enter the app. */
           }
-          showAuthInfo(
-            profileWarn ? `You’re signed in. ${profileWarn}` : "Account created — you’re signed in.",
-          );
+          /** RN Web: push session into UI immediately — `onAuthStateChange` can lag or not fire in some embeds. */
+          setAuthSession(data.session);
+          setAuthReady(true);
+          clearAuthMessages();
           return;
         }
 
@@ -145,15 +166,23 @@ export function AuthScreen() {
         showAuthError(signInError.message);
         return;
       }
-      if (!signInData.session?.user) {
+      let session: Session | null = signInData.session ?? null;
+      if (!session?.user) {
+        const { data: refreshed } = await supabase.auth.getSession();
+        session = refreshed.session ?? null;
+      }
+      if (!session?.user) {
         showAuthError("Sign-in did not return a session. Try again or confirm your email if required.");
         return;
       }
+      const activeSession = session;
       try {
-        await ensureUserProfile(signInData.session.user);
+        await ensureUserProfile(activeSession.user);
       } catch {
         /* Best-effort; auth succeeded regardless. */
       }
+      setAuthSession(activeSession);
+      setAuthReady(true);
       clearAuthMessages();
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Something went wrong. Try again.";
@@ -328,18 +357,21 @@ export function AuthScreen() {
     </>
   );
 
+  const scrollBottomPad = 24 + insets.bottom + (Platform.OS === "ios" ? keyboardBottomInset : 0);
+
   const authScrollProps = {
     className: "flex-1 px-6",
     keyboardShouldPersistTaps: "handled" as const,
-    contentContainerStyle: { flexGrow: 1 as const, paddingTop: 20, paddingBottom: 24 },
+    keyboardDismissMode: "on-drag" as const,
+    contentContainerStyle: { flexGrow: 1 as const, paddingTop: 20, paddingBottom: scrollBottomPad },
     style: [...scrollViewStyle, !isWeb ? ({ flexGrow: 1 } satisfies ViewStyle) : undefined],
     showsVerticalScrollIndicator: false,
     showsHorizontalScrollIndicator: false,
   };
 
   return (
-    <KeyboardAvoidingView className="flex-1 bg-white dark:bg-ink" behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <View className="flex-1 bg-white dark:bg-ink">
       <ScrollView {...authScrollProps}>{authScrollContent}</ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }

@@ -11,6 +11,8 @@ import { buildDogdexBreedOrder } from "@/constants/breeds";
 import { variantThresholds } from "@/constants/theme";
 import type { RootStackParamList } from "@/core/navigation/types";
 import { getOriginMapData } from "@/lib/breedOriginGeo";
+import { isAdminEmail } from "@/constants/admin";
+import { useAuthStore } from "@/store/useAuthStore";
 import { selectCollectedBreedIds, useSpotterStore } from "@/store/useSpotterStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "BreedDetail">;
@@ -21,6 +23,8 @@ export function BreedDetailScreen({ route, navigation }: Props) {
   const breeds = useSpotterStore((state) => state.breeds);
   const allScans = useSpotterStore((state) => state.scans);
   const currentUserId = useSpotterStore((state) => state.currentUser.id);
+  const sessionEmail = useAuthStore((s) => s.session?.user?.email);
+  const showAdminEdit = isAdminEmail(sessionEmail);
   const breed = useMemo(
     () => breeds.find((item) => item.id === route.params.breedId),
     [breeds, route.params.breedId],
@@ -122,6 +126,14 @@ export function BreedDetailScreen({ route, navigation }: Props) {
                 <MaterialCommunityIcons name="camera" size={14} color="#d97706" />
                 <Text className="text-sm font-semibold text-amber-600 dark:text-amber-400">Open Spot</Text>
               </View>
+            </Pressable>
+          ) : null}
+          {showAdminEdit ? (
+            <Pressable
+              onPress={() => navigation.navigate("AdminBreedEditor", { breedId: breed.id })}
+              className="rounded-full bg-zinc-200 px-3 py-1.5 dark:bg-zinc-800"
+            >
+              <Text className="text-xs font-semibold text-black dark:text-white">Edit breed (admin)</Text>
             </Pressable>
           ) : null}
         </View>

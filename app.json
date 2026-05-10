@@ -25,6 +25,7 @@
       }
     },
     "android": {
+      "softwareKeyboardLayoutMode": "pan",
       "adaptiveIcon": {
         "foregroundImage": "./assets/spotter-logo.png",
         "backgroundColor": "#0b0b0b"

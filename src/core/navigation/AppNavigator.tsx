@@ -18,6 +18,7 @@ import { SocialScreen } from "@/features/social/SocialScreen";
 import { DogProfileScreen } from "@/features/social/DogProfileScreen";
 import { FriendsScreen } from "@/features/social/FriendsScreen";
 import { TopDogsScreen } from "@/features/social/TopDogsScreen";
+import { AdminBreedEditorScreen } from "@/features/admin/AdminBreedEditorScreen";
 import { BreedSelectorScreen } from "@/features/spot/BreedSelectorScreen";
 import { DogNamingScreen } from "@/features/spot/DogNamingScreen";
 import { SpotCameraScreen } from "@/features/spot/SpotCameraScreen";
@@ -185,6 +186,11 @@ export function AppNavigator() {
           <Stack.Screen name="BreedSelector" component={BreedSelectorScreen} options={{ title: "Select Breed" }} />
           <Stack.Screen name="DogNaming" component={DogNamingScreen} options={{ title: "Name Dog" }} />
           <Stack.Screen name="BreedDetail" component={BreedDetailScreen} options={{ title: "Breed Detail" }} />
+          <Stack.Screen
+            name="AdminBreedEditor"
+            component={AdminBreedEditorScreen}
+            options={{ title: "Edit breed (admin)" }}
+          />
           <Stack.Screen name="PendingScanDetail" component={PendingScanDetailScreen} options={{ title: "Tag Scan" }} />
           <Stack.Screen
             name="LeagueDetail"

@@ -27,6 +27,7 @@ import type {
   UserProfile,
 } from "@/types/app";
 import { MAX_FEED_COMMENT_LENGTH, MAX_SPOT_COMMENT_LENGTH } from "@/constants/feedSocial";
+import { fetchBreedsFromSupabase } from "@/lib/supabase/breedsRemote";
 
 interface SpotDraft {
   photoUri: string | null;
@@ -64,6 +65,8 @@ interface SpotterState {
   clearSpotDraft: () => void;
   addRecentBreed: (breedId: string) => void;
   refreshFeaturedBreedForToday: () => void;
+  /** Merge `public.breeds` from Supabase over the local catalog (authenticated fetch). */
+  refreshBreedsFromRemote: () => Promise<void>;
   completeScan: (input: {
     breedId: string | null;
     photoUrl: string;
@@ -429,7 +432,7 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
     set((state) => ({
       recentBreedIds: [breedId, ...state.recentBreedIds.filter((id) => id !== breedId)].slice(0, RECENT_BREED_LIMIT),
     })),
-  refreshFeaturedBreedForToday: () =>
+    refreshFeaturedBreedForToday: () =>
     set((state) => {
       const todayKey = getDateKey();
       if (state.featuredBreedDateKey === todayKey) return state;
@@ -438,6 +441,11 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
         featuredBreedDateKey: todayKey,
       };
     }),
+  refreshBreedsFromRemote: async () => {
+    const next = await fetchBreedsFromSupabase();
+    if (!next) return;
+    set({ breeds: next });
+  },
   completeScan: ({
     breedId,
     photoUrl,
