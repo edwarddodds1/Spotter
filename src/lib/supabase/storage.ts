@@ -41,5 +41,7 @@ export async function uploadAvatar(userId: string, localUri: string) {
   }
 
   const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-  return data.publicUrl;
+  const base = data.publicUrl;
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}v=${Date.now()}`;
 }

@@ -15,8 +15,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.spotter.app",
+      "bundleIdentifier": "com.spotter.dog",
+      "buildNumber": "2",
       "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Spotter uses your camera so you can photograph dogs you encounter.",
         "NSLocationWhenInUseUsageDescription": "Spotter uses your location to place scans on your journal map and calculate area leagues.",
         "NSPhotoLibraryUsageDescription": "Spotter uses your photo library when you choose an avatar."
@@ -29,12 +31,13 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.spotter.app",
+      "package": "com.spotter.dog",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.READ_MEDIA_IMAGES"
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -62,6 +65,12 @@
         }
       ],
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "659f39cf-8af6-4bd5-9c5d-ba7478eac60d"
+      }
+    },
+    "owner": "edwarddodds"
   }
 }

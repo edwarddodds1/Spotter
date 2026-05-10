@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FlatList, Image, Pressable, Text, TextInput, View } from "react-native";
+import { FlatList, Image, Keyboard, Pressable, Text, TextInput, View } from "react-native";
 import Fuse from "fuse.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -39,6 +39,9 @@ export function BreedSelectorScreen({ navigation }: Props) {
       <TextInput
         value={query}
         onChangeText={setQuery}
+        returnKeyType="done"
+        blurOnSubmit
+        onSubmitEditing={Keyboard.dismiss}
         placeholder="Search breeds"
         placeholderTextColor="#71717a"
         className="mt-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-black dark:border-border dark:bg-card dark:text-white"

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Keyboard, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import * as Location from "expo-location";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 
@@ -85,6 +85,7 @@ export function DogNamingScreen({ navigation }: Props) {
   }
 
   const submit = async () => {
+    if (loading) return;
     try {
       setLoading(true);
       const result = await saveSpot({
@@ -147,6 +148,9 @@ export function DogNamingScreen({ navigation }: Props) {
                 : "No GPS for this shot — type a place if you like"
             }
             placeholderTextColor="#71717a"
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={Keyboard.dismiss}
             className="min-h-[48px] flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-black dark:border-border dark:bg-card dark:text-white"
           />
           {locationLookup ? <ActivityIndicator size="small" color="#BA7517" /> : null}
@@ -171,6 +175,9 @@ export function DogNamingScreen({ navigation }: Props) {
         <TextInput
           value={dogName}
           onChangeText={setDogName}
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={Keyboard.dismiss}
           placeholder="Does this dog have a name?"
           placeholderTextColor="#71717a"
           className="mt-5 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-black dark:border-border dark:bg-card dark:text-white"
@@ -201,6 +208,9 @@ export function DogNamingScreen({ navigation }: Props) {
           placeholderTextColor="#71717a"
           multiline
           textAlignVertical="top"
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={Keyboard.dismiss}
           maxLength={MAX_SPOT_COMMENT_LENGTH}
           className="mt-2 min-h-[88px] rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-black dark:border-border dark:bg-card dark:text-white"
         />

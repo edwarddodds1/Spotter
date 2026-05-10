@@ -22,7 +22,6 @@ export function SocialScreen() {
   const breeds = useSpotterStore((state) => state.breeds);
   const dogProfiles = useSpotterStore((state) => state.dogProfiles);
   const currentUser = useSpotterStore((state) => state.currentUser);
-  const friends = useSpotterStore((state) => state.friends);
   const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
 
   const scans = useMemo(
@@ -71,51 +70,22 @@ export function SocialScreen() {
     return rows;
   }, [breeds, currentUser, dogProfiles, scans]);
 
-  const weekScanCount = useMemo(() => {
-    const start = getStartOfCurrentWeek();
-    return scans.filter((s) => new Date(s.scannedAt) >= start).length;
-  }, [scans]);
-
   return (
     <ScrollView className="flex-1 bg-zinc-50 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
-      <View className="px-4 pt-8">
+      <View className="flex-row items-center justify-between gap-3 px-4 pt-8">
         <Text className="text-4xl font-black text-black dark:text-white">Social</Text>
+        <Pressable
+          onPress={() => navigation.navigate("Friends")}
+          className="flex-row items-center gap-1.5 rounded-full bg-zinc-100 px-3.5 py-2 dark:bg-zinc-900"
+        >
+          <MaterialCommunityIcons name="account-group-outline" size={18} color={palette.amber} />
+          <Text className="text-sm font-semibold text-black dark:text-white">Friends</Text>
+          {pendingFriendRequests.length > 0 ? <View className="h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
+        </Pressable>
       </View>
-      {/* Hero */}
+
       <View className="px-4 pb-6 pt-4">
         <View className="overflow-hidden rounded-3xl bg-white shadow-sm dark:bg-card dark:shadow-none">
-          <View
-            className="border-b border-zinc-100 px-5 pb-5 pt-6 dark:border-border"
-          >
-            <View className="flex-row items-start justify-between">
-              <View className="flex-1 flex-row items-center gap-4">
-                <UserAvatar
-                  username={currentUser.username}
-                  avatarUrl={currentUser.avatarUrl}
-                  size={72}
-                />
-                <View className="min-w-0 flex-1">
-                  <Text className="text-xs font-semibold uppercase tracking-wide text-amber">Your profile</Text>
-                  <Text className="mt-1 text-xl font-bold text-black dark:text-white" numberOfLines={1}>
-                    {currentUser.username}
-                  </Text>
-                  <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                    {weekScanCount} scan{weekScanCount === 1 ? "" : "s"} this week · {friends.length} friend
-                    {friends.length === 1 ? "" : "s"}
-                  </Text>
-                </View>
-              </View>
-              <Pressable
-                onPress={() => navigation.navigate("Friends")}
-                className="ml-2 flex-row items-center gap-1.5 rounded-full bg-zinc-100 px-3.5 py-2 dark:bg-zinc-900"
-              >
-                <MaterialCommunityIcons name="account-group-outline" size={18} color={palette.amber} />
-                <Text className="text-sm font-semibold text-black dark:text-white">Friends</Text>
-                {pendingFriendRequests.length > 0 ? <View className="h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
-              </Pressable>
-            </View>
-          </View>
-
           <View className="px-5 py-4">
             <View className="mb-3 flex-row items-center justify-between">
               <Text className="text-base font-bold text-black dark:text-white">Top dogs</Text>

@@ -37,67 +37,72 @@ export async function saveSpot(input: {
     return result;
   }
 
-  const uploadedUrl = await uploadScanPhoto(input.userId, result.scan.id, input.photoUri);
+  try {
+    const uploadedUrl = await uploadScanPhoto(input.userId, result.scan.id, input.photoUri);
 
-  let dogProfileId = result.dogProfile?.id ?? null;
-  const trimmedName = input.dogName?.trim();
+    let dogProfileId = result.dogProfile?.id ?? null;
+    const trimmedName = input.dogName?.trim();
 
-  if (input.breedId && trimmedName) {
-    const normalized = normalizeName(trimmedName);
-    const { data: existingDog } = await db
-      .from("dog_profiles")
-      .select("id,total_scans")
-      .eq("breed_id", input.breedId)
-      .eq("normalized_name", normalized)
-      .maybeSingle();
-
-    if (existingDog) {
-      dogProfileId = existingDog.id;
-      await db
+    if (input.breedId && trimmedName) {
+      const normalized = normalizeName(trimmedName);
+      const { data: existingDog } = await db
         .from("dog_profiles")
-        .update({ total_scans: existingDog.total_scans + 1 })
-        .eq("id", existingDog.id);
-    } else {
-      const { data: createdDog } = await db
-        .from("dog_profiles")
-        .insert({
-          id: result.dogProfile?.id ?? undefined,
-          name: trimmedName,
-          normalized_name: normalized,
-          breed_id: input.breedId,
-          owner_id: null,
-          total_scans: 1,
-        })
-        .select("id")
-        .single();
-      dogProfileId = createdDog?.id ?? dogProfileId;
+        .select("id,total_scans")
+        .eq("breed_id", input.breedId)
+        .eq("normalized_name", normalized)
+        .maybeSingle();
+
+      if (existingDog) {
+        dogProfileId = existingDog.id;
+        await db
+          .from("dog_profiles")
+          .update({ total_scans: existingDog.total_scans + 1 })
+          .eq("id", existingDog.id);
+      } else {
+        const { data: createdDog } = await db
+          .from("dog_profiles")
+          .insert({
+            id: result.dogProfile?.id ?? undefined,
+            name: trimmedName,
+            normalized_name: normalized,
+            breed_id: input.breedId,
+            owner_id: null,
+            total_scans: 1,
+          })
+          .select("id")
+          .single();
+        dogProfileId = createdDog?.id ?? dogProfileId;
+      }
     }
+
+    await db.from("scans").upsert({
+      id: result.scan.id,
+      user_id: input.userId,
+      breed_id: input.breedId,
+      photo_url: uploadedUrl,
+      dog_name: trimmedName ?? null,
+      dog_profile_id: dogProfileId,
+      location_lat: input.locationLat ?? null,
+      location_lng: input.locationLng ?? null,
+      location_label: result.scan.locationLabel,
+      scanned_at: result.scan.scannedAt,
+      is_pending_breed: !input.breedId,
+      points_awarded: result.scan.pointsAwarded,
+      matched_featured_breed: result.scan.matchedFeaturedBreed,
+      coat_colour_id: result.scan.coatColourId,
+      coat_colour_note: result.scan.coatColourNote,
+      spot_comment: result.scan.spotComment,
+      is_private: result.scan.isPrivate,
+    });
+
+    await db
+      .from("users")
+      .update({ total_scans: useSpotterStore.getState().currentUser.totalScans })
+      .eq("id", input.userId);
+  } catch (error) {
+    // Keep spot flow unblocked when remote sync fails (e.g., missing storage bucket or strict RLS).
+    console.warn("[saveSpot] Supabase sync failed; kept local scan:", error);
   }
-
-  await db.from("scans").upsert({
-    id: result.scan.id,
-    user_id: input.userId,
-    breed_id: input.breedId,
-    photo_url: uploadedUrl,
-    dog_name: trimmedName ?? null,
-    dog_profile_id: dogProfileId,
-    location_lat: input.locationLat ?? null,
-    location_lng: input.locationLng ?? null,
-    location_label: result.scan.locationLabel,
-    scanned_at: result.scan.scannedAt,
-    is_pending_breed: !input.breedId,
-    points_awarded: result.scan.pointsAwarded,
-    matched_featured_breed: result.scan.matchedFeaturedBreed,
-    coat_colour_id: result.scan.coatColourId,
-    coat_colour_note: result.scan.coatColourNote,
-    spot_comment: result.scan.spotComment,
-    is_private: result.scan.isPrivate,
-  });
-
-  await db
-    .from("users")
-    .update({ total_scans: useSpotterStore.getState().currentUser.totalScans })
-    .eq("id", input.userId);
 
   return result;
 }

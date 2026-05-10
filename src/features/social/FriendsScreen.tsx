@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Keyboard, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { UserAvatar } from "@/components/UserAvatar";
 import { useSpotterStore } from "@/store/useSpotterStore";
@@ -21,6 +21,9 @@ export function FriendsScreen() {
         <TextInput
           value={username}
           onChangeText={setUsername}
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={Keyboard.dismiss}
           placeholder="Search username"
           placeholderTextColor="#71717a"
           className="rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
 import { AppMark } from "@/components/AppMark";
+import { WebPhoneFrame } from "@/components/WebPhoneFrame";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -10,6 +11,7 @@ import { useColorScheme } from "nativewind";
 import { AppNavigator } from "@/core/navigation/AppNavigator";
 import { AuthScreen } from "@/features/auth/AuthScreen";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { ensureUserProfile } from "@/lib/supabase/profile";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSpotterStore } from "@/store/useSpotterStore";
 
@@ -52,6 +54,11 @@ export default function RootApp() {
   useEffect(() => {
     if (!session?.user) return;
     const run = async () => {
+      try {
+        await ensureUserProfile(session.user);
+      } catch {
+        /* Best-effort to avoid blocking app load on strict RLS setups. */
+      }
       const db = supabase as any;
       const { data } = await db.from("users").select("id,username,avatar_url").eq("id", session.user.id).maybeSingle();
       const metadata = session.user.user_metadata ?? {};
@@ -78,26 +85,28 @@ export default function RootApp() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <StatusBar style={themeMode === "dark" ? "light" : "dark"} />
-        {!isReady ? (
-          <View className="flex-1 items-center justify-center bg-white dark:bg-ink">
-            <AppMark size={72} />
-            <ActivityIndicator style={{ marginTop: 20 }} color="#BA7517" />
-            <Text className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">Loading Spotter...</Text>
-          </View>
-        ) : session || demoMode ? (
-          <>
-            {!isSupabaseConfigured ? (
-              <View className="bg-amber px-4 py-2">
-                <Text className="text-center text-xs font-semibold text-white">
-                  Demo mode active until Supabase env variables are set.
-                </Text>
-              </View>
-            ) : null}
-            <AppNavigator />
-          </>
-        ) : (
-          <AuthScreen />
-        )}
+        <WebPhoneFrame>
+          {!isReady ? (
+            <View className="flex-1 items-center justify-center bg-white dark:bg-ink">
+              <AppMark size={72} />
+              <ActivityIndicator style={{ marginTop: 20 }} color="#BA7517" />
+              <Text className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">Loading Spotter...</Text>
+            </View>
+          ) : session || demoMode ? (
+            <View style={{ flex: 1 }}>
+              {!isSupabaseConfigured ? (
+                <View className="bg-amber px-4 py-2">
+                  <Text className="text-center text-xs font-semibold text-white">
+                    Demo mode active until Supabase env variables are set.
+                  </Text>
+                </View>
+              ) : null}
+              <AppNavigator />
+            </View>
+          ) : (
+            <AuthScreen />
+          )}
+        </WebPhoneFrame>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -1,4 +1,4 @@
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Keyboard, Pressable, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Svg, { ClipPath, Defs, Line, Polygon, Rect } from "react-native-svg";
 
@@ -47,6 +47,9 @@ export function CoatColourPicker({ breedId, selectedId, otherNote, onSelect, onO
         <TextInput
           value={otherNote}
           onChangeText={onOtherNote}
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={Keyboard.dismiss}
           placeholder="Describe the colour (e.g. blue merle, parti)"
           placeholderTextColor="#71717a"
           className="mt-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-black dark:border-border dark:bg-card dark:text-white"

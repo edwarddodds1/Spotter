@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, Keyboard, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Fuse from "fuse.js";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 
 import { buildDogdexBreedOrder } from "@/constants/breeds";
 import { MAX_JOURNAL_DOG_FIELD_LENGTH } from "@/constants/app";
@@ -38,6 +39,7 @@ export function ProfileMyDogsSection() {
   const [breedId, setBreedId] = useState<string | null>(null);
   const [breedQuery, setBreedQuery] = useState("");
   const [sex, setSex] = useState<JournalDogSex>("unknown");
+  const [dogPhotoUri, setDogPhotoUri] = useState<string | null>(null);
   const [ageOrBirthNote, setAgeOrBirthNote] = useState("");
   const [coatDescription, setCoatDescription] = useState("");
   const [personalityNotes, setPersonalityNotes] = useState("");
@@ -61,6 +63,7 @@ export function ProfileMyDogsSection() {
     setBreedId(null);
     setBreedQuery("");
     setSex("unknown");
+    setDogPhotoUri(null);
     setAgeOrBirthNote("");
     setCoatDescription("");
     setPersonalityNotes("");
@@ -74,6 +77,7 @@ export function ProfileMyDogsSection() {
     const br = breeds.find((b) => b.id === dog.breedId);
     setBreedQuery(br?.name ?? "");
     setSex(dog.sex);
+    setDogPhotoUri(dog.photoUrl);
     setAgeOrBirthNote(dog.ageOrBirthNote ?? "");
     setCoatDescription(dog.coatDescription ?? "");
     setPersonalityNotes(dog.personalityNotes ?? "");
@@ -83,6 +87,18 @@ export function ProfileMyDogsSection() {
   const closeModal = () => {
     setModalOpen(false);
     setEditingId(null);
+  };
+
+  const pickDogPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled) {
+      setDogPhotoUri(result.assets[0].uri);
+    }
   };
 
   const save = () => {
@@ -98,6 +114,7 @@ export function ProfileMyDogsSection() {
     if (editingId) {
       updateJournalDog(editingId, {
         name: n,
+        photoUrl: dogPhotoUri,
         breedId,
         sex,
         ageOrBirthNote: ageOrBirthNote.trim() || null,
@@ -107,6 +124,7 @@ export function ProfileMyDogsSection() {
     } else {
       addJournalDog({
         name: n,
+        photoUrl: dogPhotoUri,
         breedId,
         sex,
         ageOrBirthNote: ageOrBirthNote.trim() || null,
@@ -158,23 +176,32 @@ export function ProfileMyDogsSection() {
                 className="rounded-2xl border border-zinc-200/80 bg-white p-4 dark:border-border dark:bg-card"
               >
                 <View className="flex-row items-start justify-between gap-2">
-                  <View className="min-w-0 flex-1">
-                    <Text className="text-base font-bold text-black dark:text-white">{dog.name}</Text>
-                    <Text className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">{br?.name ?? "Breed"}</Text>
-                    <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                      {SEX_OPTIONS.find((s) => s.id === dog.sex)?.label}
-                      {dog.ageOrBirthNote ? ` · ${dog.ageOrBirthNote}` : ""}
-                    </Text>
-                    {dog.coatDescription ? (
-                      <Text className="mt-2 text-xs leading-4 text-zinc-600 dark:text-zinc-400">
-                        Coat: {dog.coatDescription}
+                  <View className="min-w-0 flex-1 flex-row gap-3">
+                    {dog.photoUrl ? (
+                      <Image source={{ uri: dog.photoUrl }} className="h-16 w-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800" />
+                    ) : (
+                      <View className="h-16 w-16 items-center justify-center rounded-2xl bg-zinc-100 dark:bg-zinc-900">
+                        <MaterialCommunityIcons name="dog" size={22} color={palette.muted} />
+                      </View>
+                    )}
+                    <View className="min-w-0 flex-1">
+                      <Text className="text-base font-bold text-black dark:text-white">{dog.name}</Text>
+                      <Text className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">{br?.name ?? "Breed"}</Text>
+                      <Text className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                        {SEX_OPTIONS.find((s) => s.id === dog.sex)?.label}
+                        {dog.ageOrBirthNote ? ` · ${dog.ageOrBirthNote}` : ""}
                       </Text>
-                    ) : null}
-                    {dog.personalityNotes ? (
-                      <Text className="mt-1 text-xs leading-4 text-zinc-600 dark:text-zinc-400">
-                        {dog.personalityNotes}
-                      </Text>
-                    ) : null}
+                      {dog.coatDescription ? (
+                        <Text className="mt-2 text-xs leading-4 text-zinc-600 dark:text-zinc-400">
+                          Coat: {dog.coatDescription}
+                        </Text>
+                      ) : null}
+                      {dog.personalityNotes ? (
+                        <Text className="mt-1 text-xs leading-4 text-zinc-600 dark:text-zinc-400">
+                          {dog.personalityNotes}
+                        </Text>
+                      ) : null}
+                    </View>
                   </View>
                   <View className="flex-row gap-1">
                     <Pressable
@@ -213,10 +240,35 @@ export function ProfileMyDogsSection() {
             </Pressable>
           </View>
           <ScrollView className="flex-1 px-4 pt-4" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
+            <Text className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Photo</Text>
+            <View className="mt-2 flex-row items-center gap-3">
+              <Pressable
+                onPress={() => void pickDogPhoto()}
+                className="h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50 dark:border-border dark:bg-zinc-950"
+              >
+                {dogPhotoUri ? (
+                  <Image source={{ uri: dogPhotoUri }} className="h-full w-full" />
+                ) : (
+                  <MaterialCommunityIcons name="image-plus" size={24} color={palette.muted} />
+                )}
+              </Pressable>
+              <View className="flex-1">
+                <Text className="text-sm text-zinc-600 dark:text-zinc-400">Add a profile photo for your dog.</Text>
+                {dogPhotoUri ? (
+                  <Pressable onPress={() => setDogPhotoUri(null)} className="mt-2 self-start rounded-full bg-zinc-100 px-3 py-1.5 dark:bg-zinc-900">
+                    <Text className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Remove photo</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+
             <Text className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Name</Text>
             <TextInput
               value={name}
               onChangeText={(t) => setName(clip(t))}
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
               placeholder="e.g. Mochi"
               placeholderTextColor="#71717a"
               className="mt-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -231,6 +283,9 @@ export function ProfileMyDogsSection() {
                 setBreedQuery(t);
                 setBreedId(null);
               }}
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
               placeholder="Type to search breeds"
               placeholderTextColor="#71717a"
               className="mt-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -281,6 +336,9 @@ export function ProfileMyDogsSection() {
             <TextInput
               value={ageOrBirthNote}
               onChangeText={(t) => setAgeOrBirthNote(clip(t))}
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
               placeholder="e.g. 3 years · born March 2023"
               placeholderTextColor="#71717a"
               className="mt-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -292,6 +350,9 @@ export function ProfileMyDogsSection() {
             <TextInput
               value={coatDescription}
               onChangeText={(t) => setCoatDescription(clip(t))}
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
               placeholder="e.g. Red cavoodle, wavy fleece"
               placeholderTextColor="#71717a"
               className="mt-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -307,6 +368,9 @@ export function ProfileMyDogsSection() {
               placeholderTextColor="#71717a"
               multiline
               textAlignVertical="top"
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
               className="mt-1 min-h-[100px] rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
             />
           </ScrollView>

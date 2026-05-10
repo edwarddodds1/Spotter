@@ -1,9 +1,22 @@
 import { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  type ViewStyle,
+} from "react-native";
 
 import { AppMark } from "@/components/AppMark";
 import { signInWithGoogle } from "@/lib/supabase/auth";
-import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { explainAuthNetworkFailure, isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { ensureUserProfile } from "@/lib/supabase/profile";
+import { getWebAuthRedirectTo } from "@/lib/supabase/redirect";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export function AuthScreen() {
@@ -13,16 +26,30 @@ export function AuthScreen() {
   const [username, setUsername] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const ltrInputStyle = { writingDirection: "ltr" as const, textAlign: "left" as const };
+  const isWeb = Platform.OS === "web";
 
-  const getWebRedirectTo = () =>
-    typeof window !== "undefined" ? `${window.location.origin}${window.location.pathname}` : undefined;
+  const scrollViewStyle = [
+    isWeb ? ({ width: "100%", flexGrow: 1, flexShrink: 1 } satisfies ViewStyle) : undefined,
+    /** Web Chromium/Firefox: hide scroll chrome (still scrollable). */
+    isWeb ? ({ scrollbarWidth: "none", msOverflowStyle: "none" } as ViewStyle) : undefined,
+  ];
 
   const normalizeEmail = (value: string) => value.trim().toLowerCase();
+  const normalizeAuthErrorMessage = (message: string) => {
+    const normalized = message.trim().toLowerCase();
+    if (normalized.includes("failed to fetch") || normalized.includes("network request failed")) {
+      return `Unable to reach Supabase. ${explainAuthNetworkFailure()}`;
+    }
+    return message;
+  };
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
   const handleEmailAuth = async () => {
     if (loading) return;
+    setAuthError(null);
     if (!isSupabaseConfigured) {
       Alert.alert(
         "Supabase not configured",
@@ -66,7 +93,7 @@ export function AuthScreen() {
           email: nextEmail,
           password: nextPassword,
           options: {
-            emailRedirectTo: getWebRedirectTo(),
+            emailRedirectTo: getWebAuthRedirectTo("/"),
             data: {
               username: nextUsername,
             },
@@ -74,25 +101,20 @@ export function AuthScreen() {
         });
 
         if (error) {
-          Alert.alert("Could not sign up", error.message);
+          const message = normalizeAuthErrorMessage(error.message);
+          setAuthError(message);
+          Alert.alert("Could not sign up", message);
           return;
         }
 
         if (data.user?.id && data.session) {
-          const db = supabase as any;
-          const { error: profileError } = await db.from("users").upsert(
-            {
-              id: data.user.id,
-              username: nextUsername,
-            },
-            { onConflict: "id" },
-          );
-          if (profileError) {
+          try {
+            await ensureUserProfile(data.user);
+          } catch {
             Alert.alert(
               "Account created",
               "Your auth account was created, but profile setup failed. Try signing in once, then update your profile.",
             );
-            return;
           }
           Alert.alert("Account created", "You are now signed in.");
           return;
@@ -105,7 +127,18 @@ export function AuthScreen() {
 
       const { error } = await supabase.auth.signInWithPassword({ email: nextEmail, password: nextPassword });
       if (error) {
-        Alert.alert("Could not sign in", error.message);
+        const message = normalizeAuthErrorMessage(error.message);
+        setAuthError(message);
+        Alert.alert("Could not sign in", message);
+        return;
+      }
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session?.user) {
+        try {
+          await ensureUserProfile(sessionData.session.user);
+        } catch {
+          /* Best-effort; auth succeeded regardless. */
+        }
       }
     } finally {
       setLoading(false);
@@ -129,19 +162,26 @@ export function AuthScreen() {
       Alert.alert("Invalid email", "Enter a valid email address.");
       return;
     }
-    setLoading(true);
-    const redirectTo = getWebRedirectTo();
-    const { error } = await supabase.auth.resetPasswordForEmail(nextEmail, redirectTo ? { redirectTo } : undefined);
-    setLoading(false);
-    if (error) {
-      Alert.alert("Reset failed", error.message);
-      return;
+    try {
+      setAuthError(null);
+      setLoading(true);
+      const redirectTo = getWebAuthRedirectTo("/");
+      const { error } = await supabase.auth.resetPasswordForEmail(nextEmail, redirectTo ? { redirectTo } : undefined);
+      if (error) {
+        const message = normalizeAuthErrorMessage(error.message);
+        setAuthError(message);
+        Alert.alert("Reset failed", message);
+        return;
+      }
+    } finally {
+      setLoading(false);
     }
     Alert.alert("Password reset sent", "Check your inbox for the reset link.");
   };
 
   const handleGoogleAuth = async () => {
     try {
+      setAuthError(null);
       if (!isSupabaseConfigured) {
         Alert.alert(
           "Supabase not configured",
@@ -152,18 +192,16 @@ export function AuthScreen() {
 
       await signInWithGoogle();
     } catch (error) {
-      Alert.alert("Google sign-in failed", error instanceof Error ? error.message : "Unknown error");
+      const rawMessage = error instanceof Error ? error.message : "Unknown error";
+      const message = normalizeAuthErrorMessage(rawMessage);
+      setAuthError(message);
+      Alert.alert("Google sign-in failed", message);
     }
   };
 
-  return (
-    <KeyboardAvoidingView className="flex-1 bg-white dark:bg-ink" behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView
-        className="flex-1 px-6"
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ flexGrow: 1, paddingTop: 20, paddingBottom: 24 }}
-      >
-        <View className="items-center">
+  const authScrollContent = (
+    <>
+      <View className="items-center">
           <View className="rounded-3xl border border-zinc-200 bg-white px-5 py-4 dark:border-border dark:bg-card">
             <AppMark size={70} />
           </View>
@@ -178,8 +216,17 @@ export function AuthScreen() {
           {isSignUp ? (
             <TextInput
               value={username}
-              onChangeText={setUsername}
+              onChangeText={(value) => {
+                setAuthError(null);
+                setUsername(value);
+              }}
               autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              style={ltrInputStyle}
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
               placeholder="Username"
               placeholderTextColor="#71717a"
               className="rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -187,17 +234,35 @@ export function AuthScreen() {
           ) : null}
           <TextInput
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(value) => {
+              setAuthError(null);
+              setEmail(value);
+            }}
             autoCapitalize="none"
+            autoCorrect={false}
+            spellCheck={false}
+            style={ltrInputStyle}
             keyboardType="email-address"
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={Keyboard.dismiss}
             placeholder="Email"
             placeholderTextColor="#71717a"
             className="rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
           />
           <TextInput
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(value) => {
+              setAuthError(null);
+              setPassword(value);
+            }}
             secureTextEntry
+            autoCorrect={false}
+            spellCheck={false}
+            style={ltrInputStyle}
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={Keyboard.dismiss}
             placeholder="Password"
             placeholderTextColor="#71717a"
             className="rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -207,6 +272,7 @@ export function AuthScreen() {
               {loading ? "Working..." : isSignUp ? "Create account" : "Continue with email"}
             </Text>
           </Pressable>
+          {authError ? <Text className="text-sm font-medium text-red-600 dark:text-red-400">{authError}</Text> : null}
           {!isSignUp ? (
             <Pressable onPress={handleForgotPassword} disabled={loading}>
               <Text className="text-center text-sm font-medium text-amber">Forgot password?</Text>
@@ -219,7 +285,13 @@ export function AuthScreen() {
           >
             <Text className="text-center font-semibold text-black dark:text-white">Continue with Google</Text>
           </Pressable>
-          <Pressable onPress={() => setIsSignUp((current) => !current)} disabled={loading}>
+          <Pressable
+            onPress={() => {
+              setAuthError(null);
+              setIsSignUp((current) => !current);
+            }}
+            disabled={loading}
+          >
             <Text className="text-center text-sm text-zinc-600 dark:text-zinc-400">
               {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
             </Text>
@@ -230,7 +302,21 @@ export function AuthScreen() {
             </Text>
           </Pressable>
         </View>
-      </ScrollView>
+    </>
+  );
+
+  const authScrollProps = {
+    className: "flex-1 px-6",
+    keyboardShouldPersistTaps: "handled" as const,
+    contentContainerStyle: { flexGrow: 1 as const, paddingTop: 20, paddingBottom: 24 },
+    style: [...scrollViewStyle, !isWeb ? ({ flexGrow: 1 } satisfies ViewStyle) : undefined],
+    showsVerticalScrollIndicator: false,
+    showsHorizontalScrollIndicator: false,
+  };
+
+  return (
+    <KeyboardAvoidingView className="flex-1 bg-white dark:bg-ink" behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <ScrollView {...authScrollProps}>{authScrollContent}</ScrollView>
     </KeyboardAvoidingView>
   );
 }

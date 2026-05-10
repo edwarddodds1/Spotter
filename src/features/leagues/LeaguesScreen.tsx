@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  Keyboard,
   Platform,
   Pressable,
   ScrollView,
@@ -199,6 +200,9 @@ export function LeaguesScreen() {
             <TextInput
               value={leagueName}
               onChangeText={setLeagueName}
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
               placeholder="e.g. Saturday Park Crew"
               placeholderTextColor="#71717a"
               className="mt-1.5 rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -227,6 +231,9 @@ export function LeaguesScreen() {
                 else if (t === "") setMaxMembers(2);
               }}
               keyboardType="number-pad"
+              returnKeyType="done"
+              blurOnSubmit
+              onSubmitEditing={Keyboard.dismiss}
               placeholder="Custom max"
               placeholderTextColor="#71717a"
               className="mt-2 rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -256,6 +263,9 @@ export function LeaguesScreen() {
                   value={customDays}
                   onChangeText={setCustomDays}
                   keyboardType="number-pad"
+                  returnKeyType="done"
+                  blurOnSubmit
+                  onSubmitEditing={Keyboard.dismiss}
                   placeholder="14"
                   placeholderTextColor="#71717a"
                   className="mt-1 rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"

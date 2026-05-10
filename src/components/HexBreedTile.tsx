@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { Image, Pressable, Text, View, type DimensionValue } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 import Svg, { Polygon } from "react-native-svg";
 import Animated, { FadeInUp } from "react-native-reanimated";
 
@@ -29,6 +29,7 @@ const rareLegendarySprite = require("../../assets/rare-legendary-dogs.png");
 const TILE_SCALE = 1.3;
 const TILE_W = 72 * TILE_SCALE;
 const TILE_H = 78 * TILE_SCALE;
+export const HEX_TILE_WIDTH = TILE_W;
 const VIEWBOX_H = 110;
 const FEET_Y_VIEWBOX = 74;
 
@@ -52,14 +53,11 @@ export function HexBreedTile({
   breed,
   unlocked,
   onPress,
-  columns = 3,
   animationDelayMs,
 }: {
   breed: Breed;
   unlocked: boolean;
   onPress?: () => void;
-  /** Grid columns (Dogdex uses 3 so hexes read clearly). */
-  columns?: number;
   /** Optional enter animation delay for staggered row reveal. */
   animationDelayMs?: number;
 }) {
@@ -106,10 +104,8 @@ export function HexBreedTile({
         )
       : null;
 
-  const colWidth = `${100 / columns}%` as DimensionValue;
-
   return (
-    <View style={{ width: colWidth }}>
+    <View style={{ width: HEX_TILE_WIDTH }}>
       <Animated.View
         entering={
           typeof animationDelayMs === "number"

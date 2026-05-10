@@ -3,6 +3,7 @@ import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 
 import { supabase } from "@/lib/supabase/client";
+import { getWebAuthRedirectTo } from "@/lib/supabase/redirect";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -19,7 +20,10 @@ export async function signInWithGoogle(): Promise<GoogleAuthResult> {
     if (typeof window === "undefined") {
       throw new Error("Google sign-in is only available in a browser.");
     }
-    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    const redirectTo = getWebAuthRedirectTo("/");
+    if (!redirectTo) {
+      throw new Error("Unable to build a web redirect URL for Google sign-in.");
+    }
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },

@@ -1,10 +1,12 @@
 import { useMemo, type ReactNode } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
+
+import { useLayoutWindowDimensions } from "@/context/WebPreviewDimensionsContext";
 import { useNavigation } from "@react-navigation/native";
 import Animated from "react-native-reanimated";
 
 import { FeaturedTodayCard } from "@/components/FeaturedTodayCard";
-import { HexBreedTile } from "@/components/HexBreedTile";
+import { HEX_TILE_WIDTH, HexBreedTile } from "@/components/HexBreedTile";
 import { DOGDEX_TOTAL } from "@/constants/app";
 import { buildDogdexBreedOrder, rarityOrder } from "@/constants/breeds";
 import { rarityColors } from "@/constants/theme";
@@ -14,6 +16,7 @@ const GRID_COLUMNS = 3;
 
 export function DogdexScreen() {
   const navigation = useNavigation<any>();
+  const { width } = useLayoutWindowDimensions();
   const breeds = useSpotterStore((state) => state.breeds);
   const scans = useSpotterStore((state) => state.scans);
   const featuredBreedId = useSpotterStore((state) => state.featuredBreedId);
@@ -25,9 +28,16 @@ export function DogdexScreen() {
   const featuredBreed = useMemo(() => breeds.find((b) => b.id === featuredBreedId) ?? null, [breeds, featuredBreedId]);
   const dogdexOrder = useMemo(() => buildDogdexBreedOrder(breeds), [breeds]);
 
+  const horizontalPadding = width < 360 ? 12 : 16;
+
   return (
     <Animated.ScrollView
-      className="flex-1 bg-zinc-50 px-4 pt-8 dark:bg-ink"
+      className="flex-1 bg-zinc-50 pt-8 dark:bg-ink"
+      style={{ paddingHorizontal: horizontalPadding }}
+      contentContainerStyle={{ flexGrow: 1, paddingBottom: 96 }}
+      showsVerticalScrollIndicator={false}
+      showsHorizontalScrollIndicator={false}
+      alwaysBounceVertical
     >
       <Text className="text-4xl font-black text-black dark:text-white">Dogdex</Text>
       <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
@@ -74,10 +84,11 @@ export function DogdexScreen() {
               scrollEnabled={false}
               data={padded}
               numColumns={GRID_COLUMNS}
+              columnWrapperStyle={{ justifyContent: "space-evenly" }}
               keyExtractor={(item, index) => (item ? item.id : `pad-${rarity}-${index}`)}
               renderItem={({ item, index }) => {
                 if (!item) {
-                  return <View className="mb-5" style={{ width: `${100 / GRID_COLUMNS}%` }} />;
+                  return <View className="mb-5" style={{ width: HEX_TILE_WIDTH }} />;
                 }
 
                 const unlocked = collectedIds.has(item.id);
@@ -86,7 +97,6 @@ export function DogdexScreen() {
                   <HexBreedTile
                     breed={item}
                     unlocked={unlocked}
-                    columns={GRID_COLUMNS}
                     animationDelayMs={rowIndex * 80}
                     onPress={() => navigation.navigate("BreedDetail", { breedId: item.id })}
                   />
@@ -118,7 +128,6 @@ export function DogdexScreen() {
         </RevealOnScroll>
       ) : null}
 
-      <View className="h-20" />
     </Animated.ScrollView>
   );
 }

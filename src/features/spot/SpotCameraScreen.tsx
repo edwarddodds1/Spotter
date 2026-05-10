@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
-import { Alert, ImageBackground, Pressable, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Alert, ImageBackground, Platform, Pressable, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { formatGeocodedPlace } from "@/lib/spotLocationLabel";
 import { useSpotterStore } from "@/store/useSpotterStore";
@@ -13,10 +14,20 @@ type Props = BottomTabScreenProps<TabParamList, "SpotTab">;
 export function SpotCameraScreen({ navigation }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [isCapturing, setIsCapturing] = useState(false);
+  const [facing, setFacing] = useState<"back" | "front">("back");
   const cameraRef = useRef<CameraView | null>(null);
+  const captureRef = useRef<() => Promise<void>>(async () => {});
+  const lastVolumeRef = useRef<number | null>(null);
+  const volumeTriggerLockRef = useRef(false);
+  const lastPreviewTapAtRef = useRef(0);
   const setSpotDraft = useSpotterStore((state) => state.setSpotDraft);
 
+  const flipCamera = () => {
+    setFacing((current) => (current === "back" ? "front" : "back"));
+  };
+
   const capture = async () => {
+    if (isCapturing) return;
     try {
       setIsCapturing(true);
       const [cameraResult, locationResult] = await Promise.all([
@@ -59,6 +70,46 @@ export function SpotCameraScreen({ navigation }: Props) {
       setIsCapturing(false);
     }
   };
+  captureRef.current = capture;
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    let mounted = true;
+    let sub: { remove: () => void } | null = null;
+
+    (async () => {
+      try {
+        const volumeModule = await import("react-native-volume-manager");
+        const { VolumeManager } = volumeModule;
+        const initial = await VolumeManager.getVolume();
+        if (mounted) {
+          lastVolumeRef.current = initial.volume;
+        }
+        sub = VolumeManager.addVolumeListener(({ volume }) => {
+          const prev = lastVolumeRef.current;
+          lastVolumeRef.current = volume;
+          if (prev == null) return;
+
+          // Volume-down press lowers the level; trigger one capture per press.
+          if (volume < prev && !volumeTriggerLockRef.current) {
+            volumeTriggerLockRef.current = true;
+            void captureRef.current();
+            setTimeout(() => {
+              volumeTriggerLockRef.current = false;
+            }, 350);
+          }
+        });
+      } catch {
+        // Native volume hook unavailable (e.g. Expo Go); keep shutter button behavior.
+      }
+    })();
+
+    return () => {
+      mounted = false;
+      sub?.remove();
+    };
+  }, []);
 
   if (!permission) {
     return <View className="flex-1 bg-white dark:bg-ink" />;
@@ -102,8 +153,19 @@ export function SpotCameraScreen({ navigation }: Props) {
 
   return (
     <View className="flex-1 bg-black">
-      <CameraView ref={cameraRef} style={{ flex: 1 }} facing="back">
-        <View className="flex-1 justify-between bg-black/30 px-6 pb-12 pt-16">
+      <CameraView ref={cameraRef} style={{ flex: 1 }} facing={facing}>
+        <View
+          className="flex-1 justify-between bg-black/30 px-6 pb-12 pt-16"
+          onTouchEnd={() => {
+            const now = Date.now();
+            if (now - lastPreviewTapAtRef.current < 280) {
+              flipCamera();
+              lastPreviewTapAtRef.current = 0;
+              return;
+            }
+            lastPreviewTapAtRef.current = now;
+          }}
+        >
           <View>
             <Text className="text-sm uppercase tracking-[1.5px] text-white/80">Spot</Text>
             <Text className="mt-2 text-3xl font-bold text-white">Frame the dog and capture</Text>
@@ -111,13 +173,23 @@ export function SpotCameraScreen({ navigation }: Props) {
 
           <View className="items-center">
             <Pressable
+              onPress={flipCamera}
+              className="absolute bottom-2 left-0 h-11 w-11 items-center justify-center rounded-full bg-black/35"
+              accessibilityRole="button"
+              accessibilityLabel="Flip camera"
+            >
+              <MaterialCommunityIcons name="camera-flip-outline" size={20} color="#ffffff" />
+            </Pressable>
+            <Pressable
               onPress={capture}
               disabled={isCapturing}
               className="h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-amber"
             >
               <View className="h-16 w-16 rounded-full bg-white" />
             </Pressable>
-            <Text className="mt-4 text-sm text-white/80">{isCapturing ? "Saving..." : "Tap to snap"}</Text>
+            <Text className="mt-4 text-sm text-white/80">
+              {isCapturing ? "Saving..." : Platform.OS === "web" ? "Tap to snap" : "Tap to snap or press volume down"}
+            </Text>
           </View>
         </View>
       </CameraView>

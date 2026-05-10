@@ -68,6 +68,8 @@ export interface JournalDog {
   id: string;
   userId: string;
   name: string;
+  /** Optional profile photo for the user's own dog. */
+  photoUrl: string | null;
   breedId: string;
   sex: JournalDogSex;
   ageOrBirthNote: string | null;

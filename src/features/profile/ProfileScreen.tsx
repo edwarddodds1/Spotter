@@ -1,8 +1,13 @@
 import { useMemo, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { Alert, Image, Keyboard, Modal, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
+import type { RootStackParamList } from "@/core/navigation/types";
+
+import { AvatarEditorModal } from "@/components/AvatarEditorModal";
 import { BadgeTile } from "@/components/BadgeTile";
 import { UserAvatar } from "@/components/UserAvatar";
 import { DOGDEX_TOTAL } from "@/constants/app";
@@ -18,8 +23,7 @@ import { selectCollectedBreedIds, useSpotterStore } from "@/store/useSpotterStor
 import type { BadgeType } from "@/types/app";
 
 export function ProfileScreen() {
-  const themeMode = useSpotterStore((state) => state.themeMode);
-  const setThemeMode = useSpotterStore((state) => state.setThemeMode);
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const currentUser = useSpotterStore((state) => state.currentUser);
   const scans = useSpotterStore((state) => state.scans);
   const breeds = useSpotterStore((state) => state.breeds);
@@ -30,12 +34,14 @@ export function ProfileScreen() {
   const setAvatar = useSpotterStore((state) => state.setAvatar);
   const setUsername = useSpotterStore((state) => state.setUsername);
   const setUserLocation = useSpotterStore((state) => state.setUserLocation);
-  const signOutDemo = useAuthStore((state) => state.signOutDemo);
   const authSession = useAuthStore((state) => state.session);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [draftUsername, setDraftUsername] = useState(currentUser.username);
   const [draftCity, setDraftCity] = useState(currentUser.city);
   const [draftCountry, setDraftCountry] = useState(currentUser.country);
+  const [avatarEditorVisible, setAvatarEditorVisible] = useState(false);
+  const [avatarPick, setAvatarPick] = useState<{ uri: string; width: number; height: number } | null>(null);
+  const [avatarSourceSheetVisible, setAvatarSourceSheetVisible] = useState(false);
 
   const collectedCount = selectCollectedBreedIds(scans).size;
   const badgeUnlockedSet = useMemo(() => new Set<BadgeType>(earnedBadges), [earnedBadges]);
@@ -67,26 +73,81 @@ export function ProfileScreen() {
     [scans, currentUser.id],
   );
 
-  const pickAvatar = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      quality: 0.85,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-
-    if (result.canceled) return;
-    try {
-      const uploaded = await uploadAvatar(currentUser.id, result.assets[0].uri);
-      if (authSession?.user?.id) {
-        const db = supabase as any;
-        await db.from("users").update({ avatar_url: uploaded }).eq("id", authSession.user.id);
-        await supabase.auth.updateUser({ data: { avatar_url: uploaded } });
-      }
-      setAvatar(uploaded);
-    } catch (error) {
-      Alert.alert("Avatar upload failed", error instanceof Error ? error.message : "Unknown error");
+  const openAvatarSourcePicker = () => {
+    if (Platform.OS === "web") {
+      setAvatarSourceSheetVisible(true);
+      return;
     }
+    Alert.alert("Profile photo", "Choose a source", [
+      { text: "Photo library", onPress: () => void pickAvatarFromLibrary() },
+      { text: "Take photo", onPress: () => void pickAvatarFromCamera() },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const pickAvatarFromLibrary = async () => {
+    try {
+      /**
+       * Web: never await permission before opening the file dialog — browsers require a direct
+       * user activation; expo-image-picker already returns "granted" on web without a prompt.
+       */
+      if (Platform.OS !== "web") {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(
+            "Photo access needed",
+            "Allow Spotter to access your photos so you can set a profile picture.",
+          );
+          return;
+        }
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 1,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const a = result.assets[0];
+      setAvatarPick({ uri: a.uri, width: a.width ?? 0, height: a.height ?? 0 });
+      setAvatarEditorVisible(true);
+    } finally {
+      if (Platform.OS === "web") setAvatarSourceSheetVisible(false);
+    }
+  };
+
+  const pickAvatarFromCamera = async () => {
+    try {
+      if (Platform.OS !== "web") {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert(
+            "Camera access needed",
+            "Allow Spotter to use the camera so you can take a profile picture.",
+          );
+          return;
+        }
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 1,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets[0]) return;
+      const a = result.assets[0];
+      setAvatarPick({ uri: a.uri, width: a.width ?? 0, height: a.height ?? 0 });
+      setAvatarEditorVisible(true);
+    } finally {
+      if (Platform.OS === "web") setAvatarSourceSheetVisible(false);
+    }
+  };
+
+  const commitAvatarUpload = async (localUri: string) => {
+    const uploaded = await uploadAvatar(currentUser.id, localUri);
+    if (authSession?.user?.id) {
+      const db = supabase as any;
+      await db.from("users").update({ avatar_url: uploaded }).eq("id", authSession.user.id);
+      await supabase.auth.updateUser({ data: { avatar_url: uploaded } });
+    }
+    setAvatar(uploaded);
   };
 
   const unlockedCount = earnedBadges.length;
@@ -140,10 +201,21 @@ export function ProfileScreen() {
   };
 
   return (
+    <>
     <ScrollView className="flex-1 bg-zinc-50 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
-      <View className="px-4 pb-2 pt-8">
-        <Text className="text-4xl font-black text-black dark:text-white">Profile</Text>
-        <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Your stats, achievements, and journal.</Text>
+      <View className="flex-row items-center justify-between gap-3 px-4 pb-2 pt-8">
+        <View className="min-w-0 flex-1">
+          <Text className="text-4xl font-black text-black dark:text-white">Profile</Text>
+          <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Your stats, achievements, and journal.</Text>
+        </View>
+        <Pressable
+          onPress={() => navigation.navigate("Settings")}
+          className="rounded-full bg-zinc-100 p-2.5 dark:bg-zinc-900"
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+        >
+          <MaterialCommunityIcons name="cog-outline" size={22} color={palette.amber} />
+        </Pressable>
       </View>
 
       {/* Hero */}
@@ -165,7 +237,7 @@ export function ProfileScreen() {
                 username={currentUser.username}
                 avatarUrl={currentUser.avatarUrl}
                 size={76}
-                onPress={isEditingProfile ? pickAvatar : undefined}
+                onPress={isEditingProfile ? openAvatarSourcePicker : undefined}
                 showEditHint={isEditingProfile}
               />
               <View className="min-w-0 flex-1">
@@ -175,6 +247,9 @@ export function ProfileScreen() {
                       value={draftUsername}
                       onChangeText={setDraftUsername}
                       autoFocus
+                      returnKeyType="done"
+                      blurOnSubmit
+                      onSubmitEditing={Keyboard.dismiss}
                       placeholder="Username"
                       placeholderTextColor="#71717a"
                       className="rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-base font-semibold text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -182,6 +257,9 @@ export function ProfileScreen() {
                     <TextInput
                       value={draftCity}
                       onChangeText={setDraftCity}
+                      returnKeyType="done"
+                      blurOnSubmit
+                      onSubmitEditing={Keyboard.dismiss}
                       placeholder="City"
                       placeholderTextColor="#71717a"
                       className="mt-2 rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -189,11 +267,16 @@ export function ProfileScreen() {
                     <TextInput
                       value={draftCountry}
                       onChangeText={setDraftCountry}
+                      returnKeyType="done"
+                      blurOnSubmit
+                      onSubmitEditing={Keyboard.dismiss}
                       placeholder="Country"
                       placeholderTextColor="#71717a"
                       className="mt-2 rounded-xl border border-zinc-200 bg-zinc-100 px-3 py-2 text-sm text-black dark:border-border dark:bg-zinc-950 dark:text-white"
                     />
-                    <Text className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Tap profile photo to update it.</Text>
+                    <Text className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                      Tap profile photo — choose library or camera, then pinch and drag to fit before saving.
+                    </Text>
                     <View className="mt-2 flex-row gap-2">
                       <Pressable onPress={() => void saveProfile()} className="rounded-full bg-amber px-3 py-1.5">
                         <Text className="text-xs font-semibold text-white">Save</Text>
@@ -404,31 +487,51 @@ export function ProfileScreen() {
           <ProfileScanMap scans={myMapScans} breeds={breeds} />
         </View>
       </View>
-
-      {/* Settings */}
-      <View className="mt-6 px-4">
-        <View className="rounded-3xl border border-zinc-200/80 bg-white p-5 dark:border-border dark:bg-card">
-          <Text className="text-lg font-bold text-black dark:text-white">Settings</Text>
-          <SettingRow label="Featured breed alerts" />
-          <SettingRow label="League updates" />
-          <SettingRow
-            label="Dark mode"
-            value={themeMode === "dark"}
-            onValueChange={(value) => setThemeMode(value ? "dark" : "light")}
-          />
-          <Pressable
-            onPress={async () => {
-              await supabase.auth.signOut().catch(() => undefined);
-              signOutDemo();
-            }}
-            className="mt-4 flex-row items-center justify-center gap-2 rounded-2xl border border-red-200/80 bg-red-50 py-3.5 dark:border-red-900/50 dark:bg-red-950/30"
-          >
-            <MaterialCommunityIcons name="logout" size={18} color="#dc2626" />
-            <Text className="font-semibold text-red-700 dark:text-red-400">Sign out</Text>
-          </Pressable>
-        </View>
-      </View>
     </ScrollView>
+    {Platform.OS === "web" ? (
+      <Modal
+        visible={avatarSourceSheetVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarSourceSheetVisible(false)}
+      >
+        <View className="flex-1 justify-end">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            onPress={() => setAvatarSourceSheetVisible(false)}
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.45)" }}
+          />
+          <View className="rounded-t-3xl border border-zinc-200 bg-white px-4 pb-8 pt-3 dark:border-border dark:bg-zinc-900">
+            <Text className="mb-3 text-center text-lg font-bold text-black dark:text-white">Profile photo</Text>
+            <Pressable
+              onPress={() => void pickAvatarFromLibrary()}
+              className="rounded-2xl bg-amber/15 py-4 dark:bg-amber/20"
+            >
+              <Text className="text-center text-base font-semibold text-amber">Photo library</Text>
+            </Pressable>
+            <Pressable onPress={() => void pickAvatarFromCamera()} className="mt-2 rounded-2xl bg-zinc-100 py-4 dark:bg-zinc-800">
+              <Text className="text-center text-base font-semibold text-black dark:text-white">Take photo</Text>
+            </Pressable>
+            <Pressable onPress={() => setAvatarSourceSheetVisible(false)} className="mt-3 py-3">
+              <Text className="text-center text-base font-medium text-zinc-500 dark:text-zinc-400">Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    ) : null}
+    <AvatarEditorModal
+      visible={avatarEditorVisible}
+      imageUri={avatarPick?.uri ?? null}
+      imageWidth={avatarPick?.width ?? 0}
+      imageHeight={avatarPick?.height ?? 0}
+      onClose={() => {
+        setAvatarEditorVisible(false);
+        setAvatarPick(null);
+      }}
+      onSave={commitAvatarUpload}
+    />
+    </>
   );
 }
 
@@ -446,19 +549,3 @@ function Stat({ label, value, icon }: { label: string; value: string; icon: keyo
   );
 }
 
-function SettingRow({
-  label,
-  value = true,
-  onValueChange,
-}: {
-  label: string;
-  value?: boolean;
-  onValueChange?: (next: boolean) => void;
-}) {
-  return (
-    <View className="mt-4 flex-row items-center justify-between rounded-2xl bg-zinc-50 px-4 py-3 dark:bg-zinc-950/80">
-      <Text className="text-black dark:text-white">{label}</Text>
-      <Switch value={value} onValueChange={onValueChange} />
-    </View>
-  );
-}

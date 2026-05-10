@@ -8,6 +8,7 @@ export type RootStackParamList = {
   Friends: undefined;
   DogProfile: { dogProfileId: string };
   TopDogs: undefined;
+  Settings: undefined;
 };
 
 export type TabParamList = {

@@ -100,6 +100,7 @@ interface SpotterState {
   removeFeedComment: (commentId: string) => void;
   addJournalDog: (input: {
     name: string;
+    photoUrl?: string | null;
     breedId: string;
     sex: JournalDogSex;
     ageOrBirthNote?: string | null;
@@ -110,6 +111,7 @@ interface SpotterState {
     id: string,
     patch: Partial<{
       name: string;
+      photoUrl: string | null;
       breedId: string;
       sex: JournalDogSex;
       ageOrBirthNote: string | null;
@@ -735,6 +737,7 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
       id: createId("journal-dog"),
       userId: get().currentUser.id,
       name,
+      photoUrl: input.photoUrl?.trim() || null,
       breedId: input.breedId,
       sex: input.sex,
       ageOrBirthNote: clip(input.ageOrBirthNote),
@@ -754,6 +757,7 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
       const next: JournalDog = {
         ...dog,
         name: patch.name !== undefined ? (patch.name.trim() || dog.name) : dog.name,
+        photoUrl: patch.photoUrl !== undefined ? patch.photoUrl?.trim() || null : dog.photoUrl,
         breedId: patch.breedId ?? dog.breedId,
         sex: patch.sex ?? dog.sex,
         ageOrBirthNote: patch.ageOrBirthNote !== undefined ? clip(patch.ageOrBirthNote) : dog.ageOrBirthNote,

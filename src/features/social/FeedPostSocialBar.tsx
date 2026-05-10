@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Keyboard, Pressable, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { FEED_REACTION_OPTIONS, MAX_FEED_COMMENT_LENGTH } from "@/constants/feedSocial";
@@ -122,6 +122,9 @@ export function FeedPostSocialBar({ scanId }: { scanId: string }) {
           placeholder="Add a comment…"
           placeholderTextColor="#71717a"
           multiline
+          returnKeyType="done"
+          blurOnSubmit
+          onSubmitEditing={Keyboard.dismiss}
           className="max-h-24 min-h-[44px] flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2.5 text-sm text-black dark:border-border dark:bg-zinc-950 dark:text-white"
         />
         <Pressable
