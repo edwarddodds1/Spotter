@@ -16,7 +16,7 @@ import { AppMark } from "@/components/AppMark";
 import { signInWithGoogle } from "@/lib/supabase/auth";
 import { explainAuthNetworkFailure, isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { ensureUserProfile } from "@/lib/supabase/profile";
-import { getEmailConfirmationRedirectTo, getWebAuthRedirectTo } from "@/lib/supabase/redirect";
+import { getWebAuthRedirectTo } from "@/lib/supabase/redirect";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export function AuthScreen() {
@@ -124,12 +124,10 @@ export function AuthScreen() {
       setLoading(true);
       if (isSignUp) {
         const nextUsername = username.trim();
-        const emailRedirectTo = getEmailConfirmationRedirectTo();
         const { data, error } = await supabase.auth.signUp({
           email: nextEmail,
           password: nextPassword,
           options: {
-            ...(emailRedirectTo ? { emailRedirectTo } : {}),
             data: {
               username: nextUsername,
             },
@@ -147,14 +145,13 @@ export function AuthScreen() {
           } catch {
             /* Profile row is best-effort; still enter the app. */
           }
-          /** RN Web: push session into UI immediately — `onAuthStateChange` can lag or not fire in some embeds. */
           setAuthSession(data.session);
           setAuthReady(true);
           clearAuthMessages();
           return;
         }
 
-        showAuthInfo("Check your email — we sent a confirmation link. After you verify, sign in here.");
+        showAuthError("Sign-up succeeded but no session was returned. Try signing in.");
         setIsSignUp(false);
         return;
       }
