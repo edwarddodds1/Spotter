@@ -974,15 +974,82 @@ export const useSpotterStore = create<SpotterState>()(
     {
       name: "spotter-store",
       version: 2,
-      storage: createJSONStorage(() => AsyncStorage),
+      /**
+       * Wrap AsyncStorage so a corrupt/blob-shaped localStorage entry can't crash store
+       * creation on web (renders a blank-white screen). Any read/write error is swallowed
+       * and the store falls back to in-memory defaults.
+       */
+      storage: createJSONStorage(() => ({
+        getItem: async (name: string) => {
+          try {
+            return await AsyncStorage.getItem(name);
+          } catch (err) {
+            console.warn("[spotter-store] getItem failed, falling back:", err);
+            return null;
+          }
+        },
+        setItem: async (name: string, value: string) => {
+          try {
+            await AsyncStorage.setItem(name, value);
+          } catch (err) {
+            console.warn("[spotter-store] setItem failed:", err);
+          }
+        },
+        removeItem: async (name: string) => {
+          try {
+            await AsyncStorage.removeItem(name);
+          } catch (err) {
+            console.warn("[spotter-store] removeItem failed:", err);
+          }
+        },
+      })),
       migrate: (persisted, version) => {
-        const p = persisted as SpotterState | undefined;
-        if (!p || version >= 2) return p as SpotterState;
+        try {
+          const p = persisted as SpotterState | undefined;
+          if (!p || typeof p !== "object") return undefined as unknown as SpotterState;
+          if (version >= 2) return p as SpotterState;
+          return {
+            ...p,
+            linkedAuthUserId:
+              p.linkedAuthUserId ??
+              (p.currentUser?.id && p.currentUser.id !== "demo-user" ? p.currentUser.id : null),
+          } as SpotterState;
+        } catch (err) {
+          console.warn("[spotter-store] migrate failed, resetting persisted state:", err);
+          return undefined as unknown as SpotterState;
+        }
+      },
+      /**
+       * Defensive merge: rehydration must never leave required arrays as null/undefined,
+       * otherwise selectors that call .map/.filter will crash and blank the app.
+       */
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<SpotterState>;
+        const safeArray = <T,>(value: unknown, fallback: T[]): T[] =>
+          Array.isArray(value) ? (value as T[]) : fallback;
         return {
+          ...current,
           ...p,
-          linkedAuthUserId:
-            p.linkedAuthUserId ??
-            (p.currentUser?.id && p.currentUser.id !== "demo-user" ? p.currentUser.id : null),
+          scans: safeArray(p.scans, current.scans),
+          dogProfiles: safeArray(p.dogProfiles, current.dogProfiles),
+          journalDogs: safeArray(p.journalDogs, current.journalDogs),
+          recentBreedIds: safeArray(p.recentBreedIds, current.recentBreedIds),
+          badges: safeArray(p.badges, current.badges),
+          friends: safeArray(p.friends, current.friends),
+          pendingFriendRequests: safeArray(p.pendingFriendRequests, current.pendingFriendRequests),
+          leagues: safeArray(p.leagues, current.leagues),
+          feedReactions: safeArray(p.feedReactions, current.feedReactions),
+          feedComments: safeArray(p.feedComments, current.feedComments),
+          weeklyPoints:
+            typeof p.weeklyPoints === "number" ? p.weeklyPoints : current.weeklyPoints,
+          currentUser:
+            p.currentUser && typeof p.currentUser === "object"
+              ? p.currentUser
+              : current.currentUser,
+          themeMode:
+            p.themeMode === "dark" || p.themeMode === "light"
+              ? p.themeMode
+              : current.themeMode,
         } as SpotterState;
       },
       /** Persist user-collected data only; static catalog/derived UI state stays in code. */

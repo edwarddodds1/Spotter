@@ -9,6 +9,7 @@ import { StatusBar } from "expo-status-bar";
 import { useColorScheme } from "nativewind";
 
 import { AppNavigator } from "@/core/navigation/AppNavigator";
+import { RootErrorBoundary } from "@/core/RootErrorBoundary";
 import { AuthScreen } from "@/features/auth/AuthScreen";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { recoverWebSessionFromUrl } from "@/lib/supabase/recoverSessionFromUrl";
@@ -17,7 +18,7 @@ import { pullAndSyncUserScans } from "@/lib/syncUserScans";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSpotterStore, waitForSpotterStoreHydration } from "@/store/useSpotterStore";
 
-export default function RootApp() {
+function RootAppInner() {
   const session = useAuthStore((state) => state.session);
   const isReady = useAuthStore((state) => state.isReady);
   const demoMode = useAuthStore((state) => state.demoMode);
@@ -33,17 +34,37 @@ export default function RootApp() {
     let isMounted = true;
 
     const boot = async () => {
-      if (Platform.OS === "web") {
-        await recoverWebSessionFromUrl();
-      }
-      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) {
-        console.warn("[auth] refreshSession:", refreshError.message);
-      }
-      const session = refreshed.session ?? (await supabase.auth.getSession()).data.session;
-      if (isMounted) {
-        setSession(session);
-        setReady(true);
+      try {
+        if (Platform.OS === "web") {
+          try {
+            await recoverWebSessionFromUrl();
+          } catch (err) {
+            console.warn("[auth] recoverWebSessionFromUrl:", err);
+          }
+        }
+        let session = null as Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"];
+        try {
+          const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError) console.warn("[auth] refreshSession:", refreshError.message);
+          session = refreshed.session ?? null;
+        } catch (err) {
+          console.warn("[auth] refreshSession threw:", err);
+        }
+        if (!session) {
+          try {
+            const { data } = await supabase.auth.getSession();
+            session = data.session ?? null;
+          } catch (err) {
+            console.warn("[auth] getSession threw:", err);
+          }
+        }
+        if (isMounted) {
+          setSession(session);
+          setReady(true);
+        }
+      } catch (err) {
+        console.warn("[auth] boot failed:", err);
+        if (isMounted) setReady(true);
       }
     };
 
@@ -147,23 +168,36 @@ export default function RootApp() {
   useEffect(() => {
     if (!session?.user) return;
     const run = async () => {
-      await waitForSpotterStoreHydration();
+      try {
+        await waitForSpotterStoreHydration();
+      } catch (err) {
+        console.warn("[RootApp] waitForSpotterStoreHydration:", err);
+      }
 
       try {
         await ensureUserProfile(session.user);
       } catch {
         /* Best-effort to avoid blocking app load on strict RLS setups. */
       }
-      const db = supabase as any;
-      const { data } = await db.from("users").select("id,username,avatar_url").eq("id", session.user.id).maybeSingle();
-      const metadata = session.user.user_metadata ?? {};
-      setCurrentUserIdentity({
-        id: session.user.id,
-        username: data?.username ?? metadata.username ?? session.user.email?.split("@")[0] ?? null,
-        avatarUrl: data?.avatar_url ?? metadata.avatar_url ?? null,
-        city: metadata.city ?? null,
-        country: metadata.country ?? null,
-      });
+      try {
+        const db = supabase as any;
+        const { data } = await db
+          .from("users")
+          .select("id,username,avatar_url")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        const metadata = session.user.user_metadata ?? {};
+        setCurrentUserIdentity({
+          id: session.user.id,
+          username:
+            data?.username ?? metadata.username ?? session.user.email?.split("@")[0] ?? null,
+          avatarUrl: data?.avatar_url ?? metadata.avatar_url ?? null,
+          city: metadata.city ?? null,
+          country: metadata.country ?? null,
+        });
+      } catch (err) {
+        console.warn("[RootApp] identity fetch failed:", err);
+      }
 
       try {
         await pullAndSyncUserScans(session.user.id);
@@ -211,5 +245,13 @@ export default function RootApp() {
         </WebPhoneFrame>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+export default function RootApp() {
+  return (
+    <RootErrorBoundary>
+      <RootAppInner />
+    </RootErrorBoundary>
   );
 }
