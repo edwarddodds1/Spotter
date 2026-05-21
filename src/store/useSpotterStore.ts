@@ -1,4 +1,6 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 import {
   DOGDEX_TOTAL,
@@ -28,6 +30,7 @@ import type {
 } from "@/types/app";
 import { MAX_FEED_COMMENT_LENGTH, MAX_SPOT_COMMENT_LENGTH } from "@/constants/feedSocial";
 import { fetchBreedsFromSupabase } from "@/lib/supabase/breedsRemote";
+import { mergeScansForUser } from "@/lib/supabase/scansRemote";
 
 interface SpotDraft {
   photoUri: string | null;
@@ -42,9 +45,53 @@ interface SpotDraft {
   isPrivate?: boolean;
 }
 
+/** Built-in demo / friend rows — not real user progress. */
+export const DEMO_SEED_SCAN_IDS = new Set([
+  "scan-1",
+  "scan-2",
+  "scan-3",
+  "scan-friend-mel",
+  "scan-friend-bris",
+]);
+
+const SYSTEM_USER_IDS = new Set(["demo-user", "friend-1", "friend-2"]);
+
+function stripDemoSeedScans(scans: ScanRecord[]): ScanRecord[] {
+  return scans.filter((s) => !DEMO_SEED_SCAN_IDS.has(s.id));
+}
+
+/**
+ * Attach local spots to the signed-in account when they were saved under a prior
+ * auth id, demo-user, or another orphaned user id on this device.
+ */
+function claimScansForSignedInUser(
+  scans: ScanRecord[],
+  nextUserId: string,
+  previousLinkedAuthUserId: string | null,
+): ScanRecord[] {
+  let next = scans.map((s) => (s.userId === "demo-user" ? { ...s, userId: nextUserId } : s));
+
+  if (previousLinkedAuthUserId && previousLinkedAuthUserId !== nextUserId) {
+    next = next.map((s) =>
+      s.userId === previousLinkedAuthUserId ? { ...s, userId: nextUserId } : s,
+    );
+  }
+
+  next = next.map((s) => {
+    if (s.userId === nextUserId) return s;
+    if (SYSTEM_USER_IDS.has(s.userId)) return s;
+    if (DEMO_SEED_SCAN_IDS.has(s.id)) return s;
+    return { ...s, userId: nextUserId };
+  });
+
+  return stripDemoSeedScans(next);
+}
+
 interface SpotterState {
   themeMode: "light" | "dark";
   currentUser: UserProfile;
+  /** Last Supabase auth user id — used to reclaim spots after account/device changes. */
+  linkedAuthUserId: string | null;
   breeds: Breed[];
   scans: ScanRecord[];
   dogProfiles: DogProfile[];
@@ -82,6 +129,19 @@ interface SpotterState {
   deleteScan: (scanId: string) => void;
   setScanPrivate: (scanId: string, isPrivate: boolean) => void;
   assignPendingBreed: (scanId: string, breedId: string) => void;
+  /**
+   * Merge scans + dog_profiles fetched from Supabase into local state.
+   * Remote rows for the given `userId` overwrite local copies by `id`; any local
+   * scan still belonging to the user that is not present remotely is dropped
+   * (treated as deleted on another device). Scans for other users are preserved.
+   */
+  hydrateUserScansFromRemote: (input: {
+    userId: string;
+    scans: ScanRecord[];
+    dogProfiles: DogProfile[];
+  }) => void;
+  /** Replace scans after remote sync; recomputes badges and totalScans for the signed-in user. */
+  applyScansAfterSync: (scans: ScanRecord[]) => void;
   setAvatar: (avatarUrl: string) => void;
   setCurrentUserIdentity: (input: {
     id: string;
@@ -127,6 +187,27 @@ interface SpotterState {
 
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Stable UUID v4 — used for ids stored in Supabase (`scans.id`, `dog_profiles.id`). */
+function createUuid(): string {
+  const cryptoObj: Crypto | undefined =
+    typeof globalThis !== "undefined" && (globalThis as { crypto?: Crypto }).crypto
+      ? (globalThis as { crypto: Crypto }).crypto
+      : undefined;
+  if (cryptoObj && typeof cryptoObj.randomUUID === "function") {
+    return cryptoObj.randomUUID();
+  }
+  const bytes = new Uint8Array(16);
+  if (cryptoObj && typeof cryptoObj.getRandomValues === "function") {
+    cryptoObj.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < 16; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 function normalizeName(value: string) {
@@ -368,9 +449,12 @@ const starterFeedComments: FeedComment[] = [
   },
 ];
 
-export const useSpotterStore = create<SpotterState>((set, get) => ({
+export const useSpotterStore = create<SpotterState>()(
+  persist(
+    (set, get) => ({
   themeMode: "light",
   currentUser: starterUser,
+  linkedAuthUserId: null,
   breeds: breedsCatalog,
   scans: starterScans,
   dogProfiles: starterDogProfiles,
@@ -480,7 +564,7 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
         dogProfile = { ...dogProfile, totalScans: dogProfile.totalScans + 1 };
       } else {
         dogProfile = {
-          id: createId("dog"),
+          id: createUuid(),
           name: dogName.trim(),
           breedId,
           ownerId: null,
@@ -495,7 +579,7 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
     const rawPlace = locationLabel?.trim() ?? "";
     const trimmedLocationLabel = rawPlace ? rawPlace.slice(0, MAX_SCAN_LOCATION_LABEL_LENGTH) : null;
     const scan: ScanRecord = {
-      id: createId("scan"),
+      id: createUuid(),
       userId: state.currentUser.id,
       breedId,
       photoUrl,
@@ -611,6 +695,53 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
         badges,
       };
     }),
+  hydrateUserScansFromRemote: ({ userId, scans: remoteScans, dogProfiles: remoteDogs }) =>
+    set((state) => {
+      const localCountBefore = state.scans.filter((s) => s.userId === userId).length;
+      const nextScans = mergeScansForUser(userId, state.scans, remoteScans);
+      const localCountAfter = nextScans.filter((s) => s.userId === userId).length;
+
+      if (localCountBefore > 0 && localCountAfter === 0) {
+        console.warn("[hydrateUserScansFromRemote] refused to wipe local scans for user", userId);
+        return state;
+      }
+
+      const dogIds = new Set(state.dogProfiles.map((d) => d.id));
+      const newDogs = remoteDogs.filter((d) => !dogIds.has(d.id));
+      const mergedDogs = state.dogProfiles
+        .map((d) => remoteDogs.find((r) => r.id === d.id) ?? d)
+        .concat(newDogs);
+
+      const userScanCount = nextScans.filter((s) => s.userId === userId).length;
+      const scanBadges = recomputeScanBadges(nextScans, state.breeds, userId);
+      const hadTopDogOwner = state.badges.includes("top_dog_owner");
+      const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+
+      const nextCurrentUser =
+        state.currentUser.id === userId
+          ? { ...state.currentUser, totalScans: Math.max(state.currentUser.totalScans, userScanCount) }
+          : state.currentUser;
+
+      return {
+        scans: nextScans,
+        dogProfiles: mergedDogs,
+        badges,
+        currentUser: nextCurrentUser,
+      };
+    }),
+  applyScansAfterSync: (scans) =>
+    set((state) => {
+      const userId = state.currentUser.id;
+      const userScanCount = scans.filter((s) => s.userId === userId).length;
+      const scanBadges = recomputeScanBadges(scans, state.breeds, userId);
+      const hadTopDogOwner = state.badges.includes("top_dog_owner");
+      const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+      return {
+        scans,
+        badges,
+        currentUser: { ...state.currentUser, totalScans: userScanCount },
+      };
+    }),
   setAvatar: (avatarUrl) =>
     set((state) => ({
       currentUser: {
@@ -619,16 +750,42 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
       },
     })),
   setCurrentUserIdentity: (input) =>
-    set((state) => ({
-      currentUser: {
-        ...state.currentUser,
-        id: input.id,
-        username: input.username?.trim() ? input.username.trim() : state.currentUser.username,
-        avatarUrl: input.avatarUrl ?? state.currentUser.avatarUrl,
-        city: input.city?.trim() ?? state.currentUser.city,
-        country: input.country?.trim() ?? state.currentUser.country,
-      },
-    })),
+    set((state) => {
+      const nextId = input.id;
+      const isRealAuth = nextId !== "demo-user" && !nextId.startsWith("friend-");
+
+      const previousLinked = state.linkedAuthUserId ?? state.currentUser.id;
+      const scans = isRealAuth
+        ? claimScansForSignedInUser(state.scans, nextId, previousLinked)
+        : state.scans;
+
+      const journalDogs = state.journalDogs.map((d) =>
+        d.userId === "demo-user" || d.userId === previousLinked ? { ...d, userId: nextId } : d,
+      );
+
+      const userScanCount = scans.filter((s) => s.userId === nextId && !s.isPendingBreed).length;
+      const scanBadges = isRealAuth ? recomputeScanBadges(scans, state.breeds, nextId) : state.badges;
+      const hadTopDogOwner = state.badges.includes("top_dog_owner");
+      const badges = isRealAuth
+        ? mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner)
+        : state.badges;
+
+      return {
+        scans,
+        journalDogs,
+        badges,
+        linkedAuthUserId: isRealAuth ? nextId : state.linkedAuthUserId,
+        currentUser: {
+          ...state.currentUser,
+          id: nextId,
+          username: input.username?.trim() ? input.username.trim() : state.currentUser.username,
+          avatarUrl: input.avatarUrl ?? state.currentUser.avatarUrl,
+          city: input.city?.trim() ?? state.currentUser.city,
+          country: input.country?.trim() ?? state.currentUser.country,
+          totalScans: isRealAuth ? Math.max(state.currentUser.totalScans, userScanCount) : state.currentUser.totalScans,
+        },
+      };
+    }),
   setUsername: (username) =>
     set((state) => {
       const next = username.trim();
@@ -813,7 +970,55 @@ export const useSpotterStore = create<SpotterState>((set, get) => ({
     set((state) => ({
       journalDogs: state.journalDogs.filter((d) => !(d.id === id && d.userId === state.currentUser.id)),
     })),
-}));
+    }),
+    {
+      name: "spotter-store",
+      version: 2,
+      storage: createJSONStorage(() => AsyncStorage),
+      migrate: (persisted, version) => {
+        const p = persisted as SpotterState | undefined;
+        if (!p || version >= 2) return p as SpotterState;
+        return {
+          ...p,
+          linkedAuthUserId:
+            p.linkedAuthUserId ??
+            (p.currentUser?.id && p.currentUser.id !== "demo-user" ? p.currentUser.id : null),
+        } as SpotterState;
+      },
+      /** Persist user-collected data only; static catalog/derived UI state stays in code. */
+      partialize: (state) => ({
+        themeMode: state.themeMode,
+        currentUser: state.currentUser,
+        linkedAuthUserId: state.linkedAuthUserId,
+        scans: state.scans,
+        dogProfiles: state.dogProfiles,
+        journalDogs: state.journalDogs,
+        recentBreedIds: state.recentBreedIds,
+        badges: state.badges,
+        friends: state.friends,
+        pendingFriendRequests: state.pendingFriendRequests,
+        leagues: state.leagues,
+        feedReactions: state.feedReactions,
+        feedComments: state.feedComments,
+        weeklyPoints: state.weeklyPoints,
+      }),
+    },
+  ),
+);
+
+/** Wait until AsyncStorage rehydration finishes so scan sync does not run on empty starter state. */
+export function waitForSpotterStoreHydration(): Promise<void> {
+  return new Promise((resolve) => {
+    if (useSpotterStore.persist.hasHydrated()) {
+      resolve();
+      return;
+    }
+    const unsub = useSpotterStore.persist.onFinishHydration(() => {
+      unsub();
+      resolve();
+    });
+  });
+}
 
 export function selectCollectedBreedIds(scans: ScanRecord[], userId: string) {
   return new Set(

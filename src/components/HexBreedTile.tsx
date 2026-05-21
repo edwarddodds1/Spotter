@@ -33,9 +33,20 @@ export const HEX_TILE_WIDTH = TILE_W;
 const VIEWBOX_H = 110;
 const FEET_Y_VIEWBOX = 74;
 
+/**
+ * Logical viewport — drives sprite fit + position. Mirrors `BreedMiniIcon` (56×45 with a 7px
+ * baseline inset) so dogs land at the same visual feet line across hex tile, thumb, and profile.
+ */
 const DOG_VIEWPORT_W = 56 * TILE_SCALE;
 const DOG_VIEWPORT_H = 45 * TILE_SCALE;
 const BASELINE_INSET = 7 * TILE_SCALE;
+
+/**
+ * Visible clipper — covers the whole tile so dogs that are tuned downward (e.g. cavoodle/groodle)
+ * aren't cut off at the bottom of the logical viewport. The text label is a sibling and stays clear.
+ */
+const CLIPPER_W = TILE_W;
+const CLIPPER_H = TILE_H;
 
 /** Let the first paint commit before entry animation runs (avoids blank first rows at scroll top). */
 const ENTER_AFTER_FIRST_FRAME_MS = 17;
@@ -140,10 +151,10 @@ export function HexBreedTile({
           pointerEvents="none"
           style={{
             position: "absolute",
-            left: dogViewportLeft,
-            top: dogViewportTop,
-            width: DOG_VIEWPORT_W,
-            height: DOG_VIEWPORT_H,
+            left: 0,
+            top: 0,
+            width: CLIPPER_W,
+            height: CLIPPER_H,
             overflow: "hidden",
             backgroundColor: "transparent",
           }}
@@ -155,8 +166,8 @@ export function HexBreedTile({
                 position: "absolute",
                 width: lineArtLayout.spriteWidth,
                 height: lineArtLayout.spriteHeight,
-                left: lineArtLayout.left,
-                top: lineArtLayout.top,
+                left: lineArtLayout.left + dogViewportLeft,
+                top: lineArtLayout.top + dogViewportTop,
                 backgroundColor: "transparent",
                 opacity: unlocked ? 1 : 0.45,
               }}
@@ -168,8 +179,8 @@ export function HexBreedTile({
                 position: "absolute",
                 width: commonLayout.spriteWidth,
                 height: commonLayout.spriteHeight,
-                left: commonLayout.left,
-                top: commonLayout.top,
+                left: commonLayout.left + dogViewportLeft,
+                top: commonLayout.top + dogViewportTop,
                 backgroundColor: "transparent",
                 opacity: unlocked ? 1 : 0.45,
               }}
@@ -181,8 +192,8 @@ export function HexBreedTile({
                 position: "absolute",
                 width: uncommonLayout.spriteWidth,
                 height: uncommonLayout.spriteHeight,
-                left: uncommonLayout.left,
-                top: uncommonLayout.top,
+                left: uncommonLayout.left + dogViewportLeft,
+                top: uncommonLayout.top + dogViewportTop,
                 backgroundColor: "transparent",
                 opacity: unlocked ? 1 : 0.45,
               }}
@@ -194,14 +205,25 @@ export function HexBreedTile({
                 position: "absolute",
                 width: rareLegendaryLayout.spriteWidth,
                 height: rareLegendaryLayout.spriteHeight,
-                left: rareLegendaryLayout.left,
-                top: rareLegendaryLayout.top,
+                left: rareLegendaryLayout.left + dogViewportLeft,
+                top: rareLegendaryLayout.top + dogViewportTop,
                 backgroundColor: "transparent",
                 opacity: unlocked ? 1 : 0.45,
               }}
             />
           ) : (
-            <View className="h-full w-full items-center justify-center" style={{ opacity: unlocked ? 1 : 0.5 }}>
+            <View
+              style={{
+                position: "absolute",
+                left: dogViewportLeft,
+                top: dogViewportTop,
+                width: DOG_VIEWPORT_W,
+                height: DOG_VIEWPORT_H,
+                alignItems: "center",
+                justifyContent: "center",
+                opacity: unlocked ? 1 : 0.5,
+              }}
+            >
               <MaterialCommunityIcons name={iconForBreed(breed.id)} size={26} color={iconColor} />
             </View>
           )}

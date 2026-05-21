@@ -1,8 +1,8 @@
-import { useMemo, type ReactNode } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 
 import { useLayoutWindowDimensions } from "@/context/WebPreviewDimensionsContext";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { ScrollView } from "react-native-gesture-handler";
 
 import { FeaturedTodayCard } from "@/components/FeaturedTodayCard";
@@ -10,6 +10,8 @@ import { HEX_TILE_WIDTH, HexBreedTile } from "@/components/HexBreedTile";
 import { DOGDEX_TOTAL } from "@/constants/app";
 import { buildDogdexBreedOrder, rarityOrder } from "@/constants/breeds";
 import { rarityColors } from "@/constants/theme";
+import { pullAndSyncUserScans } from "@/lib/syncUserScans";
+import { useAuthStore } from "@/store/useAuthStore";
 import { selectCollectedBreedIds, selectRareFindCount, useSpotterStore } from "@/store/useSpotterStore";
 
 const GRID_COLUMNS = 3;
@@ -38,6 +40,14 @@ export function DogdexScreen() {
   const dogdexOrder = useMemo(() => buildDogdexBreedOrder(breeds), [breeds]);
 
   const horizontalPadding = width < 360 ? 12 : 16;
+
+  useFocusEffect(
+    useCallback(() => {
+      const userId = useAuthStore.getState().session?.user?.id;
+      if (!userId) return;
+      void pullAndSyncUserScans(userId);
+    }, []),
+  );
 
   return (
     <ScrollView

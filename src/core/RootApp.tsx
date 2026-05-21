@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { ActivityIndicator, Linking, Platform, Text, View } from "react-native";
+import { ActivityIndicator, AppState, Linking, Platform, Text, View } from "react-native";
 
 import { AppMark } from "@/components/AppMark";
 import { WebPhoneFrame } from "@/components/WebPhoneFrame";
@@ -13,8 +13,9 @@ import { AuthScreen } from "@/features/auth/AuthScreen";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { recoverWebSessionFromUrl } from "@/lib/supabase/recoverSessionFromUrl";
 import { ensureUserProfile } from "@/lib/supabase/profile";
+import { pullAndSyncUserScans } from "@/lib/syncUserScans";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useSpotterStore } from "@/store/useSpotterStore";
+import { useSpotterStore, waitForSpotterStoreHydration } from "@/store/useSpotterStore";
 
 export default function RootApp() {
   const session = useAuthStore((state) => state.session);
@@ -35,9 +36,13 @@ export default function RootApp() {
       if (Platform.OS === "web") {
         await recoverWebSessionFromUrl();
       }
-      const { data } = await supabase.auth.getSession();
+      const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        console.warn("[auth] refreshSession:", refreshError.message);
+      }
+      const session = refreshed.session ?? (await supabase.auth.getSession()).data.session;
       if (isMounted) {
-        setSession(data.session);
+        setSession(session);
         setReady(true);
       }
     };
@@ -54,6 +59,48 @@ export default function RootApp() {
       listener.subscription.unsubscribe();
     };
   }, [setReady, setSession]);
+
+  /**
+   * Keep the user signed in across days. On native the JS timer is paused while the app is
+   * backgrounded, so Supabase's auto-refresh needs to be tied to `AppState` — without this
+   * the access token can expire and the user is forced to sign in again. Web handles refresh
+   * automatically via the browser timer, so we skip there.
+   */
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      const onVisible = () => {
+        if (typeof document !== "undefined" && document.visibilityState === "visible") {
+          void supabase.auth.refreshSession().then(({ data }) => {
+            if (data.session) setSession(data.session);
+          });
+          const userId = useAuthStore.getState().session?.user?.id;
+          if (userId) void pullAndSyncUserScans(userId);
+        }
+      };
+      document.addEventListener("visibilitychange", onVisible);
+      return () => document.removeEventListener("visibilitychange", onVisible);
+    }
+
+    supabase.auth.startAutoRefresh();
+
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        supabase.auth.startAutoRefresh();
+        void supabase.auth.refreshSession().then(({ data }) => {
+          if (data.session) setSession(data.session);
+        });
+        const userId = useAuthStore.getState().session?.user?.id;
+        if (userId) void pullAndSyncUserScans(userId);
+      } else {
+        supabase.auth.stopAutoRefresh();
+      }
+    });
+
+    return () => {
+      sub.remove();
+      supabase.auth.stopAutoRefresh();
+    };
+  }, [setSession]);
 
   /** Email confirmation / magic link on native: open app via `spotter://auth/callback#access_token=…`. */
   useEffect(() => {
@@ -100,6 +147,8 @@ export default function RootApp() {
   useEffect(() => {
     if (!session?.user) return;
     const run = async () => {
+      await waitForSpotterStoreHydration();
+
       try {
         await ensureUserProfile(session.user);
       } catch {
@@ -115,6 +164,12 @@ export default function RootApp() {
         city: metadata.city ?? null,
         country: metadata.country ?? null,
       });
+
+      try {
+        await pullAndSyncUserScans(session.user.id);
+      } catch (err) {
+        console.warn("[RootApp] Could not sync scans from Supabase:", err);
+      }
     };
     void run();
   }, [session, setCurrentUserIdentity]);

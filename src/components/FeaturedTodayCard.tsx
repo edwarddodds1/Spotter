@@ -225,9 +225,6 @@ export function FeaturedTodayCard({ breed, onOpenBreedSheet }: Props) {
               <Text className="ml-2 text-[11px] font-semibold uppercase tracking-wide text-white/95">points</Text>
             </View>
           </Animated.View>
-          <Text className="mt-3 text-sm leading-5 text-zinc-600 dark:text-zinc-400">
-            Spot this breed today — triple points in the camera flow.
-          </Text>
         </View>
       </View>
     </Pressable>

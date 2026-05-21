@@ -2,9 +2,11 @@ import { useMemo, useState } from "react";
 import { FlatList, Image, Keyboard, Pressable, Text, TextInput, View } from "react-native";
 import Fuse from "fuse.js";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { BreedSpriteThumb } from "@/components/BreedSpriteThumb";
 import { RarityBadge } from "@/components/RarityBadge";
+import { SpotPhotoEditorModal } from "@/components/SpotPhotoEditorModal";
 import { rarityOrder } from "@/constants/breeds";
 import { useSpotterStore } from "@/store/useSpotterStore";
 import type { RootStackParamList } from "@/core/navigation/types";
@@ -13,6 +15,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "BreedSelector">;
 
 export function BreedSelectorScreen({ navigation }: Props) {
   const [query, setQuery] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
   const breeds = useSpotterStore((state) => state.breeds);
   const recentBreedIds = useSpotterStore((state) => state.recentBreedIds);
   const addRecentBreed = useSpotterStore((state) => state.addRecentBreed);
@@ -48,7 +51,18 @@ export function BreedSelectorScreen({ navigation }: Props) {
       />
 
       {spotDraft.photoUri ? (
-        <Image source={{ uri: spotDraft.photoUri }} className="mt-4 h-40 w-full rounded-3xl" resizeMode="cover" />
+        <View className="mt-4">
+          <Image source={{ uri: spotDraft.photoUri }} className="h-40 w-full rounded-3xl" resizeMode="cover" />
+          <Pressable
+            onPress={() => setEditorOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Edit photo"
+            className="absolute bottom-2 right-2 flex-row items-center gap-1 rounded-full bg-black/55 px-3 py-1.5"
+          >
+            <MaterialCommunityIcons name="image-edit-outline" size={16} color="#ffffff" />
+            <Text className="text-xs font-semibold text-white">Edit</Text>
+          </Pressable>
+        </View>
       ) : null}
 
       <FlatList
@@ -120,6 +134,16 @@ export function BreedSelectorScreen({ navigation }: Props) {
             <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Save the scan now and tag the breed later from Dogdex.</Text>
           </Pressable>
         }
+      />
+
+      <SpotPhotoEditorModal
+        visible={editorOpen && Boolean(spotDraft.photoUri)}
+        imageUri={spotDraft.photoUri}
+        onClose={() => setEditorOpen(false)}
+        onSave={async (uri) => {
+          setSpotDraft({ photoUri: uri });
+          setEditorOpen(false);
+        }}
       />
     </View>
   );
