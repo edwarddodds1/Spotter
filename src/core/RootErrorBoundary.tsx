@@ -1,6 +1,8 @@
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
 import { Platform, ScrollView, Text, View, Pressable } from "react-native";
 
+import { clearPersistedSpotterState } from "@/store/spotterPersistence";
+
 type Props = { children: ReactNode };
 type State = { error: Error | null; info: ErrorInfo | null };
 
@@ -23,12 +25,12 @@ export class RootErrorBoundary extends Component<Props, State> {
 
   private clearAndReload = () => {
     try {
+      clearPersistedSpotterState();
+    } catch {
+      /* noop */
+    }
+    try {
       if (Platform.OS === "web" && typeof window !== "undefined") {
-        try {
-          window.localStorage.removeItem("spotter-store");
-        } catch {
-          /* noop */
-        }
         window.location.reload();
         return;
       }

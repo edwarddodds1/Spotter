@@ -1,6 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
 
 import {
   DOGDEX_TOTAL,
@@ -87,7 +85,7 @@ function claimScansForSignedInUser(
   return stripDemoSeedScans(next);
 }
 
-interface SpotterState {
+export interface SpotterState {
   themeMode: "light" | "dark";
   currentUser: UserProfile;
   /** Last Supabase auth user id — used to reclaim spots after account/device changes. */
@@ -450,8 +448,7 @@ const starterFeedComments: FeedComment[] = [
 ];
 
 export const useSpotterStore = create<SpotterState>()(
-  persist(
-    (set, get) => ({
+  (set, get) => ({
   themeMode: "light",
   currentUser: starterUser,
   linkedAuthUserId: null,
@@ -970,121 +967,23 @@ export const useSpotterStore = create<SpotterState>()(
     set((state) => ({
       journalDogs: state.journalDogs.filter((d) => !(d.id === id && d.userId === state.currentUser.id)),
     })),
-    }),
-    {
-      name: "spotter-store",
-      version: 2,
-      /**
-       * Wrap AsyncStorage so a corrupt/blob-shaped localStorage entry can't crash store
-       * creation on web (renders a blank-white screen). Any read/write error is swallowed
-       * and the store falls back to in-memory defaults.
-       */
-      storage: createJSONStorage(() => ({
-        getItem: async (name: string) => {
-          try {
-            return await AsyncStorage.getItem(name);
-          } catch (err) {
-            console.warn("[spotter-store] getItem failed, falling back:", err);
-            return null;
-          }
-        },
-        setItem: async (name: string, value: string) => {
-          try {
-            await AsyncStorage.setItem(name, value);
-          } catch (err) {
-            console.warn("[spotter-store] setItem failed:", err);
-          }
-        },
-        removeItem: async (name: string) => {
-          try {
-            await AsyncStorage.removeItem(name);
-          } catch (err) {
-            console.warn("[spotter-store] removeItem failed:", err);
-          }
-        },
-      })),
-      migrate: (persisted, version) => {
-        try {
-          const p = persisted as SpotterState | undefined;
-          if (!p || typeof p !== "object") return undefined as unknown as SpotterState;
-          if (version >= 2) return p as SpotterState;
-          return {
-            ...p,
-            linkedAuthUserId:
-              p.linkedAuthUserId ??
-              (p.currentUser?.id && p.currentUser.id !== "demo-user" ? p.currentUser.id : null),
-          } as SpotterState;
-        } catch (err) {
-          console.warn("[spotter-store] migrate failed, resetting persisted state:", err);
-          return undefined as unknown as SpotterState;
-        }
-      },
-      /**
-       * Defensive merge: rehydration must never leave required arrays as null/undefined,
-       * otherwise selectors that call .map/.filter will crash and blank the app.
-       */
-      merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<SpotterState>;
-        const safeArray = <T,>(value: unknown, fallback: T[]): T[] =>
-          Array.isArray(value) ? (value as T[]) : fallback;
-        return {
-          ...current,
-          ...p,
-          scans: safeArray(p.scans, current.scans),
-          dogProfiles: safeArray(p.dogProfiles, current.dogProfiles),
-          journalDogs: safeArray(p.journalDogs, current.journalDogs),
-          recentBreedIds: safeArray(p.recentBreedIds, current.recentBreedIds),
-          badges: safeArray(p.badges, current.badges),
-          friends: safeArray(p.friends, current.friends),
-          pendingFriendRequests: safeArray(p.pendingFriendRequests, current.pendingFriendRequests),
-          leagues: safeArray(p.leagues, current.leagues),
-          feedReactions: safeArray(p.feedReactions, current.feedReactions),
-          feedComments: safeArray(p.feedComments, current.feedComments),
-          weeklyPoints:
-            typeof p.weeklyPoints === "number" ? p.weeklyPoints : current.weeklyPoints,
-          currentUser:
-            p.currentUser && typeof p.currentUser === "object"
-              ? p.currentUser
-              : current.currentUser,
-          themeMode:
-            p.themeMode === "dark" || p.themeMode === "light"
-              ? p.themeMode
-              : current.themeMode,
-        } as SpotterState;
-      },
-      /** Persist user-collected data only; static catalog/derived UI state stays in code. */
-      partialize: (state) => ({
-        themeMode: state.themeMode,
-        currentUser: state.currentUser,
-        linkedAuthUserId: state.linkedAuthUserId,
-        scans: state.scans,
-        dogProfiles: state.dogProfiles,
-        journalDogs: state.journalDogs,
-        recentBreedIds: state.recentBreedIds,
-        badges: state.badges,
-        friends: state.friends,
-        pendingFriendRequests: state.pendingFriendRequests,
-        leagues: state.leagues,
-        feedReactions: state.feedReactions,
-        feedComments: state.feedComments,
-        weeklyPoints: state.weeklyPoints,
-      }),
-    },
-  ),
+  }),
 );
 
-/** Wait until AsyncStorage rehydration finishes so scan sync does not run on empty starter state. */
+let hydrationPromise: Promise<void> = Promise.resolve();
+
+/** Bootstrap layer calls this to register its restore promise. */
+export function _registerSpotterStoreHydration(promise: Promise<void>) {
+  hydrationPromise = promise;
+}
+
+/**
+ * Resolves once local persistence has had a chance to restore. On web this is
+ * effectively instantaneous (synchronous read in the bootstrap layer); on
+ * native it awaits the AsyncStorage read.
+ */
 export function waitForSpotterStoreHydration(): Promise<void> {
-  return new Promise((resolve) => {
-    if (useSpotterStore.persist.hasHydrated()) {
-      resolve();
-      return;
-    }
-    const unsub = useSpotterStore.persist.onFinishHydration(() => {
-      unsub();
-      resolve();
-    });
-  });
+  return hydrationPromise;
 }
 
 export function selectCollectedBreedIds(scans: ScanRecord[], userId: string) {
