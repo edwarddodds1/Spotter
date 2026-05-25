@@ -43,6 +43,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# breed-photo fetch script: dry-run image cache
+scripts/.breed-photos/
+
 # generated native folders
 /ios
 /android
