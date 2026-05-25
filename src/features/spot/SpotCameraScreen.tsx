@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, ImageBackground, Platform, Pressable, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { runOnJS } from "react-native-reanimated";
 
 import { SpotPhotoEditorModal } from "@/components/SpotPhotoEditorModal";
 import { formatGeocodedPlace } from "@/lib/spotLocationLabel";
@@ -21,6 +23,11 @@ type Props = BottomTabScreenProps<TabParamList, "SpotTab">;
 
 const ZOOM_STEP = 0.05;
 const ZOOM_MAX = 1;
+/**
+ * Pinch sensitivity. Each unit of pinch scale (1.0 = no change) maps onto
+ * this fraction of the camera's zoom range. Lower = subtler/slower zoom.
+ */
+const PINCH_SENSITIVITY = 0.6;
 
 export function SpotCameraScreen({ navigation }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -33,7 +40,10 @@ export function SpotCameraScreen({ navigation }: Props) {
   const lastVolumeRef = useRef<number | null>(null);
   const volumeTriggerLockRef = useRef(false);
   const hasAutoRequestedRef = useRef(false);
+  /** Captures the zoom level when a pinch starts so updates are relative. */
+  const pinchStartZoomRef = useRef(0);
   const setSpotDraft = useSpotterStore((state) => state.setSpotDraft);
+  const isWeb = Platform.OS === "web";
 
   /**
    * Auto-prompt the OS for camera access the first time we land on this screen with an
@@ -56,6 +66,34 @@ export function SpotCameraScreen({ navigation }: Props) {
   const adjustZoom = (delta: number) => {
     setZoom((current) => Math.min(ZOOM_MAX, Math.max(0, Number((current + delta).toFixed(2)))));
   };
+
+  /** Keep a live ref to `zoom` so the worklet always reads the latest value. */
+  const zoomRef = useRef(0);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  /** Pinch handler: lets users zoom the camera with two fingers. Works on touch web too. */
+  const pinchGesture = useMemo(() => {
+    const beginPinch = () => {
+      pinchStartZoomRef.current = zoomRef.current;
+    };
+    const onPinchUpdate = (scale: number) => {
+      const delta = (scale - 1) * PINCH_SENSITIVITY;
+      const next = Math.min(
+        ZOOM_MAX,
+        Math.max(0, Number((pinchStartZoomRef.current + delta).toFixed(3))),
+      );
+      setZoom(next);
+    };
+    return Gesture.Pinch()
+      .onStart(() => {
+        runOnJS(beginPinch)();
+      })
+      .onUpdate((e) => {
+        runOnJS(onPinchUpdate)(e.scale);
+      });
+  }, []);
 
   const capture = async () => {
     if (isCapturing) return;
@@ -211,65 +249,82 @@ export function SpotCameraScreen({ navigation }: Props) {
   const zoomPercent = Math.round(zoom * 100);
   const canZoomIn = zoom < ZOOM_MAX;
   const canZoomOut = zoom > 0;
+  /** Native = pinch-only. Web has no reliable touch pinch on desktop, so keep +/- buttons. */
+  const showZoomButtons = isWeb;
+  const showZoomBadge = zoom > 0;
 
   return (
     <View className="flex-1 bg-black">
-      <CameraView ref={cameraRef} style={{ flex: 1 }} facing={facing} zoom={zoom}>
-        <View className="flex-1 justify-between bg-black/30 px-6 pb-12 pt-16">
-          <View>
-            <Text className="text-sm uppercase tracking-[1.5px] text-white/80">Spot</Text>
-            <Text className="mt-2 text-3xl font-bold text-white">Frame the dog and capture</Text>
-          </View>
-
-          <View
-            pointerEvents="box-none"
-            className="absolute right-6 top-1/2 -translate-y-1/2 items-center gap-2"
-          >
-            <Pressable
-              onPress={() => adjustZoom(ZOOM_STEP)}
-              disabled={!canZoomIn}
-              className={`h-11 w-11 items-center justify-center rounded-full bg-black/45 ${canZoomIn ? "" : "opacity-40"}`}
-              accessibilityRole="button"
-              accessibilityLabel="Zoom in"
-            >
-              <MaterialCommunityIcons name="plus" size={22} color="#ffffff" />
-            </Pressable>
-            <View className="rounded-full bg-black/45 px-2 py-1">
-              <Text className="text-[11px] font-semibold text-white">{zoomPercent}%</Text>
+      <GestureDetector gesture={pinchGesture}>
+        <CameraView ref={cameraRef} style={{ flex: 1 }} facing={facing} zoom={zoom}>
+          <View className="flex-1 justify-between bg-black/30 px-6 pb-12 pt-16">
+            <View>
+              <Text className="text-sm uppercase tracking-[1.5px] text-white/80">Spot</Text>
+              <Text className="mt-2 text-3xl font-bold text-white">Frame the dog and capture</Text>
             </View>
-            <Pressable
-              onPress={() => adjustZoom(-ZOOM_STEP)}
-              disabled={!canZoomOut}
-              className={`h-11 w-11 items-center justify-center rounded-full bg-black/45 ${canZoomOut ? "" : "opacity-40"}`}
-              accessibilityRole="button"
-              accessibilityLabel="Zoom out"
-            >
-              <MaterialCommunityIcons name="minus" size={22} color="#ffffff" />
-            </Pressable>
-          </View>
 
-          <View className="items-center">
-            <Pressable
-              onPress={flipCamera}
-              className="absolute bottom-2 left-0 h-11 w-11 items-center justify-center rounded-full bg-black/35"
-              accessibilityRole="button"
-              accessibilityLabel="Flip camera"
-            >
-              <MaterialCommunityIcons name="camera-flip-outline" size={20} color="#ffffff" />
-            </Pressable>
-            <Pressable
-              onPress={capture}
-              disabled={isCapturing}
-              className="h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-amber"
-            >
-              <View className="h-16 w-16 rounded-full bg-white" />
-            </Pressable>
-            <Text className="mt-4 text-sm text-white/80">
-              {isCapturing ? "Saving..." : Platform.OS === "web" ? "Tap to snap" : "Tap to snap or press volume down"}
-            </Text>
+            {showZoomBadge ? (
+              <View
+                pointerEvents="none"
+                className="absolute right-6 top-24 self-end rounded-full bg-black/55 px-3 py-1"
+              >
+                <Text className="text-[12px] font-semibold text-white">{zoomPercent}%</Text>
+              </View>
+            ) : null}
+
+            {showZoomButtons ? (
+              <View
+                pointerEvents="box-none"
+                className="absolute right-6 top-1/2 -translate-y-1/2 items-center gap-2"
+              >
+                <Pressable
+                  onPress={() => adjustZoom(ZOOM_STEP)}
+                  disabled={!canZoomIn}
+                  className={`h-11 w-11 items-center justify-center rounded-full bg-black/45 ${canZoomIn ? "" : "opacity-40"}`}
+                  accessibilityRole="button"
+                  accessibilityLabel="Zoom in"
+                >
+                  <MaterialCommunityIcons name="plus" size={22} color="#ffffff" />
+                </Pressable>
+                <Pressable
+                  onPress={() => adjustZoom(-ZOOM_STEP)}
+                  disabled={!canZoomOut}
+                  className={`h-11 w-11 items-center justify-center rounded-full bg-black/45 ${canZoomOut ? "" : "opacity-40"}`}
+                  accessibilityRole="button"
+                  accessibilityLabel="Zoom out"
+                >
+                  <MaterialCommunityIcons name="minus" size={22} color="#ffffff" />
+                </Pressable>
+              </View>
+            ) : null}
+
+            <View className="items-center">
+              <Pressable
+                onPress={flipCamera}
+                className="absolute bottom-2 left-0 h-11 w-11 items-center justify-center rounded-full bg-black/35"
+                accessibilityRole="button"
+                accessibilityLabel="Flip camera"
+              >
+                <MaterialCommunityIcons name="camera-flip-outline" size={20} color="#ffffff" />
+              </Pressable>
+              <Pressable
+                onPress={capture}
+                disabled={isCapturing}
+                className="h-24 w-24 items-center justify-center rounded-full border-4 border-white bg-amber"
+              >
+                <View className="h-16 w-16 rounded-full bg-white" />
+              </Pressable>
+              <Text className="mt-4 text-sm text-white/80">
+                {isCapturing
+                  ? "Saving..."
+                  : isWeb
+                    ? "Tap to snap"
+                    : "Tap to snap • pinch to zoom • volume down also fires"}
+              </Text>
+            </View>
           </View>
-        </View>
-      </CameraView>
+        </CameraView>
+      </GestureDetector>
 
       <SpotPhotoEditorModal
         visible={pending !== null}
