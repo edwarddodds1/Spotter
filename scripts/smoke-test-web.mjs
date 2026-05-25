@@ -112,12 +112,69 @@ await sendInSession("Page.navigate", { url: TARGET });
 // Wait for app to settle
 await wait(8000);
 
-const html = await sendInSession("Runtime.evaluate", {
-  expression: "document.getElementById('root')?.innerHTML?.length ?? 0",
-  returnByValue: true,
-});
+async function evalSync(expression, awaitPromise = false) {
+  return sendInSession("Runtime.evaluate", { expression, returnByValue: true, awaitPromise });
+}
+
+const html = await evalSync("document.getElementById('root')?.innerHTML?.length ?? 0");
+
+const inputProbe = await evalSync(`
+  (() => {
+    const inputs = Array.from(document.querySelectorAll('input'));
+    return inputs.map((el) => ({
+      type: el.type,
+      placeholder: el.placeholder,
+      autocomplete: el.autocomplete,
+      inputmode: el.inputMode,
+      visible: el.offsetParent !== null,
+      fontSize: getComputedStyle(el).fontSize,
+    }));
+  })()
+`);
+
+const interaction = await evalSync(
+  `
+  (async () => {
+    const all = Array.from(document.querySelectorAll('input'));
+    const email = all.find((el) => el.type === 'email' || /email/i.test(el.placeholder ?? ''));
+    const password = all.find((el) => el.type === 'password');
+    if (!email || !password) return { ok: false, reason: 'missing inputs', count: all.length };
+
+    const setVal = (el, val) => {
+      const proto = Object.getPrototypeOf(el);
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      setter && setter.call(el, val);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    email.focus();
+    const emailFocused = document.activeElement === email;
+    setVal(email, 'test@example.com');
+
+    password.focus();
+    const passwordFocused = document.activeElement === password;
+    setVal(password, 'Password123!');
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    return {
+      ok: true,
+      emailFocused,
+      passwordFocused,
+      emailValue: email.value,
+      passwordValue: password.value,
+    };
+  })()
+`,
+  true,
+);
 
 console.log("=== ROOT INNER LENGTH:", html.result?.value, "===");
+console.log("=== INPUTS ===");
+console.log(JSON.stringify(inputProbe.result?.value, null, 2));
+console.log("=== INTERACTION ===");
+console.log(JSON.stringify(interaction.result?.value, null, 2));
 console.log("=== CONSOLE LOGS (last 30) ===");
 for (const l of consoleLogs.slice(-30)) console.log(l);
 console.log("=== EXCEPTIONS ===");

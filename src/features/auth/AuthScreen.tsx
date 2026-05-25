@@ -33,8 +33,17 @@ export function AuthScreen() {
   const [authInfo, setAuthInfo] = useState<string | null>(null);
   /** Extra scroll padding when keyboard is open — avoids shrinking the layout (no KeyboardAvoidingView). */
   const [keyboardBottomInset, setKeyboardBottomInset] = useState(0);
-  const ltrInputStyle = { writingDirection: "ltr" as const, textAlign: "left" as const };
   const isWeb = Platform.OS === "web";
+  /**
+   * Force LTR + left-align so RTL system locales don't reverse the input.
+   * `fontSize: 16` is critical on iOS Safari — anything smaller triggers the
+   * zoom-on-focus that makes inputs feel broken on phone-sized browsers.
+   */
+  const inputBaseStyle = {
+    writingDirection: "ltr" as const,
+    textAlign: "left" as const,
+    fontSize: 16,
+  };
 
   useEffect(() => {
     /** Android uses `softwareKeyboardLayoutMode: "pan"` so the window pans — avoid extra inset + listeners. */
@@ -265,10 +274,11 @@ export function AuthScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               spellCheck={false}
-              style={ltrInputStyle}
-              returnKeyType="done"
-              blurOnSubmit
-              onSubmitEditing={Keyboard.dismiss}
+              autoComplete="username"
+              textContentType="username"
+              style={inputBaseStyle}
+              returnKeyType="next"
+              blurOnSubmit={false}
               placeholder="Username"
               placeholderTextColor="#71717a"
               className="rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -283,11 +293,13 @@ export function AuthScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             spellCheck={false}
-            style={ltrInputStyle}
+            autoComplete="email"
+            textContentType="emailAddress"
+            inputMode="email"
+            style={inputBaseStyle}
             keyboardType="email-address"
-            returnKeyType="done"
-            blurOnSubmit
-            onSubmitEditing={Keyboard.dismiss}
+            returnKeyType="next"
+            blurOnSubmit={false}
             placeholder="Email"
             placeholderTextColor="#71717a"
             className="rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
@@ -301,10 +313,14 @@ export function AuthScreen() {
             secureTextEntry
             autoCorrect={false}
             spellCheck={false}
-            style={ltrInputStyle}
-            returnKeyType="done"
+            autoComplete={isSignUp ? "new-password" : "current-password"}
+            textContentType={isSignUp ? "newPassword" : "password"}
+            style={inputBaseStyle}
+            returnKeyType={isWeb ? "go" : "done"}
             blurOnSubmit
-            onSubmitEditing={Keyboard.dismiss}
+            onSubmitEditing={() => {
+              if (!loading) void handleEmailAuth();
+            }}
             placeholder="Password"
             placeholderTextColor="#71717a"
             className="rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
