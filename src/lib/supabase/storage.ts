@@ -18,8 +18,8 @@ export async function uploadScanPhoto(userId: string, scanId: string, localUri: 
     throw error;
   }
 
-  const { data } = supabase.storage.from("scans").getPublicUrl(path);
-  return data.publicUrl;
+  /** Store object path (private bucket); UI resolves signed URLs at display time. */
+  return path;
 }
 
 export async function uploadAvatar(userId: string, localUri: string) {

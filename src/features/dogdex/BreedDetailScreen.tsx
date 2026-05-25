@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
+import { ScanPhoto } from "@/components/ScanPhoto";
 import { BreedCommonColours } from "@/components/BreedCommonColours";
 import { BreedMiniIcon } from "@/components/BreedMiniIcon";
 import { BreedOriginMap } from "@/components/BreedOriginMap";
@@ -499,7 +500,7 @@ export function BreedDetailScreen({ route, navigation }: Props) {
                       className="w-[148px] shrink-0 overflow-hidden rounded-2xl bg-zinc-200 dark:bg-zinc-800"
                     >
                       <View className="aspect-square w-full">
-                        <Image source={{ uri: scan.photoUrl }} className="size-full" resizeMode="cover" />
+                        <ScanPhoto photoUrl={scan.photoUrl} className="size-full" resizeMode="cover" />
                         <View className="absolute bottom-0 left-0 right-0 bg-black/65 px-2 py-1.5">
                           <Text className="text-[11px] font-semibold text-white" numberOfLines={1}>
                             {scan.locationLabel?.trim() ||

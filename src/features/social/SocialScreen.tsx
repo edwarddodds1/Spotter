@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { AppMark } from "@/components/AppMark";
+import { ScanPhoto } from "@/components/ScanPhoto";
 import { PointsBadge } from "@/components/PointsBadge";
 import { RarityBadge } from "@/components/RarityBadge";
 import { UserAvatar } from "@/components/UserAvatar";
@@ -292,7 +293,7 @@ export function SocialScreen() {
                 </View>
               </View>
 
-              <Image source={{ uri: scan.photoUrl }} className="aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-900" />
+              <ScanPhoto photoUrl={scan.photoUrl} className="aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-900" />
 
               <View className="px-4 pb-4 pt-3">
                 <View className="flex-row items-start justify-between gap-3">

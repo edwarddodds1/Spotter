@@ -120,6 +120,39 @@ export async function deleteSpot(scanId: string) {
   await db.from("users").update({ total_scans: useSpotterStore.getState().currentUser.totalScans }).eq("id", currentUser.id);
 }
 
+/**
+ * Resolve a pending scan: assigns the breed locally, then pushes the update to
+ * Supabase so it persists across devices and sync round-trips. Returns whether
+ * the breed was unlocked for the first time so the UI can celebrate.
+ */
+export async function confirmPendingScanBreed(scanId: string, breedId: string) {
+  const { assignPendingBreed } = useSpotterStore.getState();
+  const result = assignPendingBreed(scanId, breedId);
+
+  if (!result.updatedScan || !isSupabaseConfigured) {
+    return result;
+  }
+
+  const db = supabase as any;
+  try {
+    const { error } = await db
+      .from("scans")
+      .update({
+        breed_id: breedId,
+        is_pending_breed: false,
+        matched_featured_breed: result.matchedFeatured,
+        points_awarded: result.updatedScan.pointsAwarded,
+      })
+      .eq("id", result.updatedScan.id)
+      .eq("user_id", result.updatedScan.userId);
+    if (error) console.warn("[confirmPendingScanBreed] update failed:", error.message);
+  } catch (err) {
+    console.warn("[confirmPendingScanBreed] sync error:", err);
+  }
+
+  return result;
+}
+
 export async function updateScanPrivacy(scanId: string, isPrivate: boolean) {
   const { currentUser, scans, setScanPrivate } = useSpotterStore.getState();
   const scan = scans.find((s) => s.id === scanId);

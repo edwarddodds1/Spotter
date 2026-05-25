@@ -126,7 +126,14 @@ export interface SpotterState {
   }) => { scan: ScanRecord; isFirstBreed: boolean; variantUnlocked: boolean; dogProfile?: DogProfile | null };
   deleteScan: (scanId: string) => void;
   setScanPrivate: (scanId: string, isPrivate: boolean) => void;
-  assignPendingBreed: (scanId: string, breedId: string) => void;
+  assignPendingBreed: (
+    scanId: string,
+    breedId: string,
+  ) => {
+    isFirstBreed: boolean;
+    updatedScan: ScanRecord | null;
+    matchedFeatured: boolean;
+  };
   /**
    * Merge scans + dog_profiles fetched from Supabase into local state.
    * Remote rows for the given `userId` overwrite local copies by `id`; any local
@@ -662,7 +669,12 @@ export const useSpotterStore = create<SpotterState>()(
         scans: st.scans.map((s) => (s.id === scanId ? { ...s, isPrivate } : s)),
       };
     }),
-  assignPendingBreed: (scanId, breedId) =>
+  assignPendingBreed: (scanId, breedId) => {
+    let result: {
+      isFirstBreed: boolean;
+      updatedScan: ScanRecord | null;
+      matchedFeatured: boolean;
+    } = { isFirstBreed: false, updatedScan: null, matchedFeatured: false };
     set((state) => {
       const scan = state.scans.find((s) => s.id === scanId);
       const breed = state.breeds.find((b) => b.id === breedId);
@@ -671,27 +683,36 @@ export const useSpotterStore = create<SpotterState>()(
       const base = RARITY_POINTS[breed.rarity];
       const nextAwarded = matchedFeatured ? base * FEATURED_MULTIPLIER : base;
       const delta = nextAwarded - scan.pointsAwarded;
-      const nextScans = state.scans.map((s) =>
-        s.id === scanId
-          ? {
-              ...s,
-              breedId,
-              isPendingBreed: false,
-              matchedFeaturedBreed: matchedFeatured,
-              pointsAwarded: nextAwarded,
-            }
-          : s,
+      /** First time this user gets a confirmed (non-pending) scan for this breed. */
+      const alreadyHas = state.scans.some(
+        (s) =>
+          s.userId === state.currentUser.id &&
+          s.breedId === breedId &&
+          !s.isPendingBreed &&
+          s.id !== scanId,
       );
+      const isFirstBreed = !alreadyHas;
+      const updatedScan: ScanRecord = {
+        ...scan,
+        breedId,
+        isPendingBreed: false,
+        matchedFeaturedBreed: matchedFeatured,
+        pointsAwarded: nextAwarded,
+      };
+      const nextScans = state.scans.map((s) => (s.id === scanId ? updatedScan : s));
       const hadTopDogOwner = state.badges.includes("top_dog_owner");
       const scanBadges = recomputeScanBadges(nextScans, state.breeds, state.currentUser.id);
       const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+      result = { isFirstBreed, updatedScan, matchedFeatured };
       return {
         scans: nextScans,
         recentBreedIds: [breedId, ...state.recentBreedIds.filter((id) => id !== breedId)].slice(0, RECENT_BREED_LIMIT),
         weeklyPoints: state.weeklyPoints + delta,
         badges,
       };
-    }),
+    });
+    return result;
+  },
   hydrateUserScansFromRemote: ({ userId, scans: remoteScans, dogProfiles: remoteDogs }) =>
     set((state) => {
       const localCountBefore = state.scans.filter((s) => s.userId === userId).length;

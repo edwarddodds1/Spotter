@@ -4,6 +4,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
+import { ScanPhoto } from "@/components/ScanPhoto";
 import { rarityColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/core/navigation/types";
 import { useSpotterStore } from "@/store/useSpotterStore";
@@ -66,9 +67,9 @@ export function DogProfileScreen({ route, navigation }: Props) {
 
         <View className="mt-5 flex-row flex-wrap justify-between">
           {scans.map((scan) => (
-            <Image
+            <ScanPhoto
               key={scan.id}
-              source={{ uri: scan.photoUrl }}
+              photoUrl={scan.photoUrl}
               className="mb-3 h-32 w-[48%] rounded-3xl border-2 border-white/35 bg-black/10"
             />
           ))}

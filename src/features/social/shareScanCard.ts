@@ -1,11 +1,13 @@
 import * as ImageManipulator from "expo-image-manipulator";
 import * as Sharing from "expo-sharing";
 
+import { resolveScanPhotoDisplayUrl } from "@/lib/supabase/scanPhotoUrl";
 import type { Breed, ScanRecord } from "@/types/app";
 
 export async function shareScanCard(scan: ScanRecord, breed: Breed) {
+  const sourceUri = await resolveScanPhotoDisplayUrl(scan.photoUrl);
   const manipulated = await ImageManipulator.manipulateAsync(
-    scan.photoUrl,
+    sourceUri,
     [{ resize: { width: 1200 } }],
     {
       compress: 0.9,
