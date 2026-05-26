@@ -78,6 +78,7 @@ function rowToScan(row: ScanRow): ScanRecord {
     coatColourNote: row.coat_colour_note,
     spotComment: row.spot_comment,
     isPrivate: row.is_private,
+    serverConfirmedAt: new Date().toISOString(),
   };
 }
 
@@ -144,12 +145,14 @@ export async function syncLocalScansToSupabase(
 
   const idRemap = new Map<string, string>();
   let next = [...allScans];
+  const confirmedAt = new Date().toISOString();
 
   for (const scan of mine) {
     let id = scan.id;
     if (!UUID_RE.test(id)) {
-      id = createUuid();
-      idRemap.set(scan.id, id);
+      const newId = createUuid();
+      idRemap.set(scan.id, newId);
+      id = newId;
       next = next.map((s) => (s.id === scan.id ? { ...s, id } : s));
     }
 
@@ -169,28 +172,54 @@ export async function syncLocalScansToSupabase(
         continue;
       }
       if (photoUrl !== rowScan.photoUrl) {
-        next = next.map((s) => (s.id === id ? { ...s, photoUrl } : s));
+        next = next.map((s) =>
+          s.id === id ? { ...s, photoUrl, serverConfirmedAt: confirmedAt } : s,
+        );
+      } else {
+        next = next.map((s) => (s.id === id ? { ...s, serverConfirmedAt: confirmedAt } : s));
       }
     } catch (err) {
       console.warn("[syncLocalScansToSupabase] scan sync error:", scan.id, err);
     }
   }
 
-  void idRemap;
+  // Remove legacy rows left behind after UUID remap (same device, old non-UUID id).
+  for (const [oldId, newId] of idRemap) {
+    if (oldId === newId) continue;
+    const { error } = await supabaseDb
+      .from("scans")
+      .delete()
+      .eq("id", oldId)
+      .eq("user_id", userId);
+    if (error) {
+      console.warn("[syncLocalScansToSupabase] legacy delete failed:", oldId, error.message);
+    }
+  }
+
   const syncedCount = next.filter((s) => s.userId === userId).length;
   await supabaseDb.from("users").update({ total_scans: syncedCount }).eq("id", userId);
 
   return next;
 }
 
-/** Merge remote scans with local scans for one user; remote wins on duplicate ids. */
+/**
+ * Merge remote scans with local scans for one user.
+ * - Remote wins on duplicate ids.
+ * - Local rows missing from remote are kept only if never confirmed on the server
+ *   (pending upload). Confirmed rows missing from remote were deleted elsewhere.
+ */
 export function mergeScansForUser(
   userId: string,
   localScans: ScanRecord[],
   remoteScans: ScanRecord[],
 ): ScanRecord[] {
   const remoteById = new Map(remoteScans.map((s) => [s.id, s] as const));
-  const localOnly = localScans.filter((s) => s.userId === userId && !remoteById.has(s.id));
+  const localOnly = localScans.filter((s) => {
+    if (s.userId !== userId) return false;
+    if (remoteById.has(s.id)) return false;
+    if (s.serverConfirmedAt) return false;
+    return true;
+  });
   const mergedForUser = [...remoteScans, ...localOnly].sort(
     (a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime(),
   );

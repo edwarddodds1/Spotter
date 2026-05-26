@@ -6,6 +6,11 @@ const SIGNED_URL_TTL_SEC = 60 * 60;
 type CacheEntry = { url: string; expiresAt: number };
 const signedUrlCache = new Map<string, CacheEntry>();
 
+/** Drop any cached signed URL for this object path so the next read fetches fresh. */
+export function invalidateScansSignedUrl(objectPath: string) {
+  signedUrlCache.delete(objectPath);
+}
+
 /** Extract `userId/file.jpg` from a Supabase scans URL or bare storage path. */
 export function parseScansStoragePath(photoUrl: string): string | null {
   const trimmed = photoUrl.trim();

@@ -8,12 +8,14 @@ import { AppMark } from "@/components/AppMark";
 import { ScanPhoto } from "@/components/ScanPhoto";
 import { PointsBadge } from "@/components/PointsBadge";
 import { RarityBadge } from "@/components/RarityBadge";
+import { SpotPhotoEditorModal } from "@/components/SpotPhotoEditorModal";
 import { UserAvatar } from "@/components/UserAvatar";
 import { FeedPostSocialBar } from "@/features/social/FeedPostSocialBar";
-import { deleteSpot } from "@/features/spot/spotService";
+import { deleteSpot, replaceScanPhoto } from "@/features/spot/spotService";
 import { shareScanCard } from "@/features/social/shareScanCard";
+import { resolveScanPhotoDisplayUrl } from "@/lib/supabase/scanPhotoUrl";
 import { getStartOfCurrentWeek } from "@/lib/utils/dates";
-import { palette, rarityColors } from "@/constants/theme";
+import { palette } from "@/constants/theme";
 import { useSpotterStore } from "@/store/useSpotterStore";
 import type { UserProfile } from "@/types/app";
 
@@ -46,8 +48,39 @@ export function SocialScreen() {
   const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
 
   const [feedMode, setFeedMode] = useState<FeedMode>("public");
+  const [editingScanId, setEditingScanId] = useState<string | null>(null);
+  const [editingUri, setEditingUri] = useState<string | null>(null);
   const segmentTrackW = useSharedValue(0);
   const segmentIndex = useSharedValue(0);
+
+  const openPhotoEditor = async (scanId: string, photoUrl: string) => {
+    try {
+      const resolved = await resolveScanPhotoDisplayUrl(photoUrl);
+      setEditingUri(resolved);
+      setEditingScanId(scanId);
+    } catch (err) {
+      console.warn("[SocialScreen] could not open photo editor", err);
+      Alert.alert("Couldn't open editor", "Please try again in a moment.");
+    }
+  };
+
+  const closePhotoEditor = () => {
+    setEditingScanId(null);
+    setEditingUri(null);
+  };
+
+  const handlePhotoSave = async (newUri: string) => {
+    const scanId = editingScanId;
+    if (!scanId) return;
+    closePhotoEditor();
+    try {
+      await replaceScanPhoto(scanId, newUri);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Couldn't update the photo. Please try again.";
+      Alert.alert("Save failed", message);
+    }
+  };
 
   useEffect(() => {
     segmentIndex.value = withSpring(feedMode === "public" ? 0 : 1, { damping: 22, stiffness: 260 });
@@ -269,6 +302,22 @@ export function SocialScreen() {
                 <View className="flex-row items-center gap-2">
                   {scan.userId === currentUser.id ? (
                     <Pressable
+                      onPress={() => void openPhotoEditor(scan.id, scan.photoUrl)}
+                      className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
+                      accessibilityLabel="Edit photo"
+                    >
+                      <MaterialCommunityIcons name="image-edit-outline" size={18} color={palette.amber} />
+                    </Pressable>
+                  ) : null}
+                  <Pressable
+                    onPress={() => shareScanCard(scan, breed)}
+                    className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
+                    accessibilityLabel="Share spot"
+                  >
+                    <MaterialCommunityIcons name="share-variant-outline" size={18} color={palette.amber} />
+                  </Pressable>
+                  {scan.userId === currentUser.id ? (
+                    <Pressable
                       onPress={() => {
                         Alert.alert(
                           "Delete this spot?",
@@ -293,7 +342,11 @@ export function SocialScreen() {
                 </View>
               </View>
 
-              <ScanPhoto photoUrl={scan.photoUrl} className="aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-900" />
+              <ScanPhoto
+                scanId={scan.id}
+                photoUrl={scan.photoUrl}
+                className="aspect-[4/3] w-full bg-zinc-100 dark:bg-zinc-900"
+              />
 
               <View className="px-4 pb-4 pt-3">
                 <View className="flex-row items-start justify-between gap-3">
@@ -314,33 +367,18 @@ export function SocialScreen() {
                   <RarityBadge rarity={breed.rarity} />
                 </View>
 
-                <View className="mt-3 h-px w-full bg-zinc-100 dark:bg-border" />
-
-                <View className="mt-3 flex-row items-center justify-between">
-                  <View className="flex-row items-center gap-2">
-                    <View
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: rarityColors[breed.rarity] }}
-                    />
-                    <Text className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                      {breed.rarity.charAt(0).toUpperCase() + breed.rarity.slice(1)} breed
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => shareScanCard(scan, breed)}
-                    className="flex-row items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-border dark:bg-zinc-900"
-                  >
-                    <MaterialCommunityIcons name="share-variant-outline" size={16} color={palette.amber} />
-                    <Text className="text-sm font-semibold text-black dark:text-white">Share</Text>
-                  </Pressable>
-                </View>
-
                 <FeedPostSocialBar scanId={scan.id} />
               </View>
             </View>
           ))
         )}
       </View>
+      <SpotPhotoEditorModal
+        visible={editingScanId !== null && editingUri !== null}
+        imageUri={editingUri}
+        onClose={closePhotoEditor}
+        onSave={handlePhotoSave}
+      />
     </ScrollView>
   );
 }

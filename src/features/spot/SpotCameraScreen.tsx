@@ -8,7 +8,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 
 import { SpotPhotoEditorModal } from "@/components/SpotPhotoEditorModal";
-import { formatGeocodedPlace } from "@/lib/spotLocationLabel";
+import { reverseGeocodeForSpot } from "@/lib/spotLocationLabel";
 import { useSpotterStore } from "@/store/useSpotterStore";
 import type { TabParamList } from "@/core/navigation/types";
 
@@ -112,13 +112,7 @@ export function SpotCameraScreen({ navigation }: Props) {
       const lng = locationResult?.coords.longitude ?? null;
       let locationLabel: string | null = null;
       if (lat != null && lng != null) {
-        try {
-          const places = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-          const line = places[0] ? formatGeocodedPlace(places[0]) : "";
-          if (line) locationLabel = line;
-        } catch {
-          /* no network / platform geocoder */
-        }
+        locationLabel = await reverseGeocodeForSpot(lat, lng);
       }
 
       setPending({

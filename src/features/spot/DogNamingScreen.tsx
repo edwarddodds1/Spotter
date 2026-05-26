@@ -9,7 +9,7 @@ import { saveSpot } from "@/features/spot/spotService";
 import type { RootStackParamList } from "@/core/navigation/types";
 import { MAX_SCAN_LOCATION_LABEL_LENGTH } from "@/constants/app";
 import { MAX_SPOT_COMMENT_LENGTH } from "@/constants/feedSocial";
-import { formatGeocodedPlace } from "@/lib/spotLocationLabel";
+import { reverseGeocodeForSpot } from "@/lib/spotLocationLabel";
 import { useSpotterStore } from "@/store/useSpotterStore";
 
 type Props = NativeStackScreenProps<RootStackParamList, "DogNaming">;
@@ -44,16 +44,10 @@ export function DogNamingScreen({ navigation }: Props) {
     (async () => {
       setLocationLookup(true);
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted" || cancelled) return;
-        const places = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
-        const hit = places[0];
-        if (cancelled || !hit) return;
-        const line = formatGeocodedPlace(hit);
-        if (line) {
-          setLocationLabel(line);
-          setSpotDraft({ locationLabel: line });
-        }
+        const line = await reverseGeocodeForSpot(lat, lng);
+        if (cancelled || !line) return;
+        setLocationLabel(line);
+        setSpotDraft({ locationLabel: line });
       } finally {
         if (!cancelled) setLocationLookup(false);
       }

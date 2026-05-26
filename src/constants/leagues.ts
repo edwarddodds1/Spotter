@@ -1,8 +1,28 @@
-/** Deep link / universal link base for league invites (configure per deployment). */
-export const LEAGUE_INVITE_BASE_URL = "https://spotter.app";
+const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
+
+/**
+ * Resolves the base URL used for league invite links.
+ *
+ * Priority:
+ * 1. Current browser origin (web) — matches localhost, Vercel previews and custom domains automatically.
+ * 2. `EXPO_PUBLIC_SITE_URL` env (native or SSR) — set this to your public web URL so native invites
+ *    open in a browser/universal link rather than a dead scheme.
+ * 3. `spotter://` app scheme as a last resort (only works if the recipient has the app installed).
+ */
+function resolveInviteBaseUrl(): string {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return trimTrailingSlash(window.location.origin);
+  }
+  const configured = process.env.EXPO_PUBLIC_SITE_URL?.trim();
+  if (configured) return trimTrailingSlash(configured);
+  return "spotter:/";
+}
+
+/** Kept for backwards compatibility; new callers should prefer {@link leagueInviteUrl}. */
+export const LEAGUE_INVITE_BASE_URL = resolveInviteBaseUrl();
 
 export function leagueInviteUrl(inviteCode: string): string {
-  return `${LEAGUE_INVITE_BASE_URL}/league/join/${inviteCode}`;
+  return `${resolveInviteBaseUrl()}/league/join/${inviteCode}`;
 }
 
 export const LEAGUE_CAPACITY_PRESETS = [5, 10, 20, 50] as const;

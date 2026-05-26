@@ -1,10 +1,14 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
+import type { League, ScanRecord, UserProfile } from "@/types/app";
 import type { SpotterState } from "@/store/useSpotterStore";
 import { _registerSpotterStoreHydration, useSpotterStore } from "@/store/useSpotterStore";
 
-const STORAGE_KEY = "spotter-store.v3";
+const STORAGE_KEY = "spotter-store.v4";
+
+const DEMO_FRIEND_IDS = new Set(["friend-1", "friend-2"]);
+const DEMO_LEAGUE_IDS = new Set(["league-1"]);
 
 type Persisted = Partial<
   Pick<
@@ -50,7 +54,24 @@ function applyPersistedSlice(persisted: Persisted) {
     if (!persisted || typeof persisted !== "object") return;
     const safeArr = <T,>(value: unknown, fallback: T[]): T[] =>
       Array.isArray(value) ? (value as T[]) : fallback;
-    useSpotterStore.setState((current) => ({
+    const linkedId =
+      typeof persisted.linkedAuthUserId === "string" ? persisted.linkedAuthUserId : null;
+    const isRealPersistedUser =
+      Boolean(linkedId && linkedId !== "demo-user" && !linkedId.startsWith("friend-"));
+
+    useSpotterStore.setState((current) => {
+      const friends = safeArr<UserProfile>(persisted.friends, current.friends);
+      const leagues = safeArr<League>(persisted.leagues, current.leagues);
+      const scans = safeArr<ScanRecord>(persisted.scans, current.scans);
+      const demoScanIds = new Set([
+        "scan-1",
+        "scan-2",
+        "scan-3",
+        "scan-friend-mel",
+        "scan-friend-bris",
+      ]);
+
+      return {
       themeMode:
         persisted.themeMode === "dark" || persisted.themeMode === "light"
           ? persisted.themeMode
@@ -63,19 +84,23 @@ function applyPersistedSlice(persisted: Persisted) {
         typeof persisted.linkedAuthUserId === "string" || persisted.linkedAuthUserId === null
           ? persisted.linkedAuthUserId
           : current.linkedAuthUserId,
-      scans: safeArr(persisted.scans, current.scans),
+      scans: isRealPersistedUser ? scans.filter((s) => !demoScanIds.has(s.id)) : scans,
       dogProfiles: safeArr(persisted.dogProfiles, current.dogProfiles),
       journalDogs: safeArr(persisted.journalDogs, current.journalDogs),
       recentBreedIds: safeArr(persisted.recentBreedIds, current.recentBreedIds),
       badges: safeArr(persisted.badges, current.badges),
-      friends: safeArr(persisted.friends, current.friends),
-      pendingFriendRequests: safeArr(persisted.pendingFriendRequests, current.pendingFriendRequests),
-      leagues: safeArr(persisted.leagues, current.leagues),
+      friends: isRealPersistedUser ? friends.filter((f) => !DEMO_FRIEND_IDS.has(f.id)) : friends,
+      pendingFriendRequests: safeArr(
+        persisted.pendingFriendRequests,
+        current.pendingFriendRequests,
+      ),
+      leagues: isRealPersistedUser ? leagues.filter((l) => !DEMO_LEAGUE_IDS.has(l.id)) : leagues,
       feedReactions: safeArr(persisted.feedReactions, current.feedReactions),
       feedComments: safeArr(persisted.feedComments, current.feedComments),
       weeklyPoints:
         typeof persisted.weeklyPoints === "number" ? persisted.weeklyPoints : current.weeklyPoints,
-    }));
+      };
+    });
   } catch (err) {
     console.warn("[spotterPersistence] applyPersistedSlice failed:", err);
   }

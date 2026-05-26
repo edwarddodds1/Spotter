@@ -387,7 +387,11 @@ export function ProfileScreen() {
                   key={scan.id}
                   className="flex-row items-center gap-3 border-b border-zinc-100 px-3 py-3 last:border-b-0 dark:border-border"
                 >
-                  <ScanPhoto photoUrl={scan.photoUrl} className="h-12 w-12 rounded-xl bg-zinc-100 dark:bg-zinc-800" />
+                  <ScanPhoto
+                    scanId={scan.id}
+                    photoUrl={scan.photoUrl}
+                    className="h-12 w-12 rounded-xl bg-zinc-100 dark:bg-zinc-800"
+                  />
                   <View className="min-w-0 flex-1">
                     <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
                       {breedLabel}

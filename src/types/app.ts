@@ -108,6 +108,12 @@ export interface ScanRecord {
   spotComment: string | null;
   /** When true, hidden from the Social feed (still counts for your Dogdex / stats). */
   isPrivate: boolean;
+  /**
+   * Set when this scan row was last known to exist in Supabase (fetch or successful upsert).
+   * Used during merge: if set and the id is missing from a remote pull, the scan was deleted
+   * on the server and must not be re-pushed as "local-only".
+   */
+  serverConfirmedAt?: string | null;
 }
 
 export type CreateLeagueInput = {

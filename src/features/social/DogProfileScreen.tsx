@@ -69,6 +69,7 @@ export function DogProfileScreen({ route, navigation }: Props) {
           {scans.map((scan) => (
             <ScanPhoto
               key={scan.id}
+              scanId={scan.id}
               photoUrl={scan.photoUrl}
               className="mb-3 h-32 w-[48%] rounded-3xl border-2 border-white/35 bg-black/10"
             />

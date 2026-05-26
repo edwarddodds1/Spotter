@@ -5,6 +5,7 @@ export type RootStackParamList = {
   BreedDetail: { breedId: string };
   AdminBreedEditor: { breedId: string };
   PendingScanDetail: { scanId: string };
+  EditScan: { scanId: string };
   LeagueDetail: { leagueId: string; leagueName: string; memberCount: number; maxMembers: number };
   Friends: undefined;
   DogProfile: { dogProfileId: string };

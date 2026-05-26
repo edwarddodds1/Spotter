@@ -260,7 +260,22 @@ export function BreedDetailScreen({ route, navigation }: Props) {
         <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
           <View style={{ height: HERO_HEIGHT }} className="relative w-full overflow-hidden bg-zinc-900">
             {heroUri ? (
-              <Image source={{ uri: heroUri }} className="absolute inset-0 size-full" resizeMode="cover" />
+              <>
+                {/* Blurred, cover-filled backdrop so the hero never has empty bars. */}
+                <Image
+                  source={{ uri: heroUri }}
+                  className="absolute inset-0 size-full"
+                  resizeMode="cover"
+                  blurRadius={30}
+                  style={{ opacity: 0.55 }}
+                />
+                {/* Sharp, contained foreground so the whole dog is always visible. */}
+                <Image
+                  source={{ uri: heroUri }}
+                  className="absolute inset-0 size-full"
+                  resizeMode="contain"
+                />
+              </>
             ) : (
               <View
                 className="absolute inset-0 items-center justify-center"
@@ -294,6 +309,16 @@ export function BreedDetailScreen({ route, navigation }: Props) {
                 <MaterialCommunityIcons name="arrow-left" size={22} color="#fff" />
               </Pressable>
               <View className="flex-row gap-2">
+                {showAdminEdit ? (
+                  <Pressable
+                    onPress={() => navigation.navigate("AdminBreedEditor", { breedId: breed.id })}
+                    className="h-10 w-10 items-center justify-center rounded-full bg-black/35"
+                    accessibilityRole="button"
+                    accessibilityLabel="Edit breed (admin)"
+                  >
+                    <MaterialCommunityIcons name="pencil" size={20} color="#fff" />
+                  </Pressable>
+                ) : null}
                 <Pressable
                   onPress={() => void onShare()}
                   className="h-10 w-10 items-center justify-center rounded-full bg-black/35"
@@ -464,20 +489,8 @@ export function BreedDetailScreen({ route, navigation }: Props) {
               );
             })()}
 
-            {showAdminEdit ? (
-              <Pressable
-                onPress={() => navigation.navigate("AdminBreedEditor", { breedId: breed.id })}
-                className="mt-5 self-start rounded-full bg-zinc-200 px-4 py-2 dark:bg-zinc-800"
-              >
-                <Text className="text-xs font-semibold text-black dark:text-white">Edit breed (admin)</Text>
-              </Pressable>
-            ) : null}
-
             <View className="mt-8">
-              <Text className="text-lg font-bold text-black dark:text-white">Your spots</Text>
-              <Text className="mt-0.5 text-sm leading-5 text-zinc-600 dark:text-zinc-400">
-                Your past scans of this breed — newest first.
-              </Text>
+              <Text className="text-lg font-bold text-black dark:text-white">{`Your ${breed.name} Spots`}</Text>
               {spotsNewestFirst.length === 0 ? (
                 <View className="mt-3 rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-8 dark:border-zinc-600 dark:bg-card">
                   <Text className="text-center text-sm text-zinc-600 dark:text-zinc-400">
@@ -494,26 +507,48 @@ export function BreedDetailScreen({ route, navigation }: Props) {
                   className="mt-3 -mx-4"
                   contentContainerStyle={{ paddingHorizontal: 16, gap: 12, paddingBottom: 4 }}
                 >
-                  {spotsNewestFirst.map((scan) => (
-                    <View
-                      key={scan.id}
-                      className="w-[148px] shrink-0 overflow-hidden rounded-2xl bg-zinc-200 dark:bg-zinc-800"
-                    >
-                      <View className="aspect-square w-full">
-                        <ScanPhoto photoUrl={scan.photoUrl} className="size-full" resizeMode="cover" />
-                        <View className="absolute bottom-0 left-0 right-0 bg-black/65 px-2 py-1.5">
-                          <Text className="text-[11px] font-semibold text-white" numberOfLines={1}>
-                            {scan.locationLabel?.trim() ||
-                              new Date(scan.scannedAt).toLocaleDateString(undefined, {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              })}
-                          </Text>
+                  {spotsNewestFirst.map((scan) => {
+                    const city = scan.locationLabel?.split(",")[0]?.trim() || null;
+                    const dateLabel = new Date(scan.scannedAt).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    });
+                    return (
+                      <Pressable
+                        key={scan.id}
+                        onPress={() => navigation.navigate("EditScan", { scanId: scan.id })}
+                        accessibilityRole="button"
+                        accessibilityLabel="Edit this spot"
+                        className="w-[148px] shrink-0 overflow-hidden rounded-2xl bg-zinc-200 dark:bg-zinc-800"
+                      >
+                        <View className="aspect-square w-full">
+                          <ScanPhoto
+                            scanId={scan.id}
+                            photoUrl={scan.photoUrl}
+                            className="size-full"
+                            resizeMode="cover"
+                          />
+                          <View className="absolute bottom-0 left-0 right-0 flex-row items-center justify-between gap-2 bg-black/65 px-2 py-1.5">
+                            <Text
+                              className="shrink-0 text-[11px] font-semibold text-white"
+                              numberOfLines={1}
+                            >
+                              {dateLabel}
+                            </Text>
+                            {city ? (
+                              <Text
+                                className="min-w-0 text-right text-[11px] font-semibold text-white"
+                                numberOfLines={1}
+                              >
+                                {city}
+                              </Text>
+                            ) : null}
+                          </View>
                         </View>
-                      </View>
-                    </View>
-                  ))}
+                      </Pressable>
+                    );
+                  })}
                 </ScrollView>
               )}
             </View>

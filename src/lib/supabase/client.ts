@@ -7,7 +7,7 @@ import { Platform } from "react-native";
 
 import type { Database } from "@/lib/supabase/types";
 
-type SupabaseExtra = { supabaseUrl?: string; supabaseKey?: string };
+type SupabaseExtra = { supabaseUrl?: string; supabaseKey?: string; releaseSha?: string };
 
 function trimEnv(value: string | undefined): string | undefined {
   const v = value?.trim();
@@ -37,6 +37,11 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
 /** Same URL the client uses (includes Supabase_URL from Vercel via `extra`). */
 export function getResolvedSupabaseProjectUrl(): string | undefined {
   return supabaseUrl;
+}
+
+/** Build identifier (Vercel commit SHA when available) — used for error reporting / release tagging. */
+export function getReleaseSha(): string | undefined {
+  return trimEnv(extra?.releaseSha);
 }
 
 const isWeb = Platform.OS === "web";

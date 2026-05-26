@@ -1,6 +1,8 @@
 import type { Session } from "@supabase/supabase-js";
 import { create } from "zustand";
 
+import { useSpotterStore } from "@/store/useSpotterStore";
+
 interface AuthState {
   session: Session | null;
   isReady: boolean;
@@ -17,6 +19,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   demoMode: false,
   setSession: (session) => set({ session }),
   setReady: (isReady) => set({ isReady }),
-  enableDemoMode: () => set({ demoMode: true }),
+  enableDemoMode: () => {
+    useSpotterStore.getState().loadDemoSeed();
+    set({ demoMode: true });
+  },
   signOutDemo: () => set({ demoMode: false, session: null }),
 }));

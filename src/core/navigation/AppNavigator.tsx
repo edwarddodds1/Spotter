@@ -9,6 +9,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { AppMark } from "@/components/AppMark";
 import { DogdexScreen } from "@/features/dogdex/DogdexScreen";
 import { BreedDetailScreen } from "@/features/dogdex/BreedDetailScreen";
+import { EditScanScreen } from "@/features/dogdex/EditScanScreen";
 import { PendingScanDetailScreen } from "@/features/dogdex/PendingScanDetailScreen";
 import { LeaguesScreen } from "@/features/leagues/LeaguesScreen";
 import { LeagueDetailScreen } from "@/features/leagues/LeagueDetailScreen";
@@ -219,6 +220,7 @@ export function AppNavigator() {
             options={{ title: "Edit breed (admin)" }}
           />
           <Stack.Screen name="PendingScanDetail" component={PendingScanDetailScreen} options={{ title: "Tag Scan" }} />
+          <Stack.Screen name="EditScan" component={EditScanScreen} options={{ title: "Edit Spot" }} />
           <Stack.Screen
             name="LeagueDetail"
             component={LeagueDetailScreen}

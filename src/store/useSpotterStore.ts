@@ -75,13 +75,6 @@ function claimScansForSignedInUser(
     );
   }
 
-  next = next.map((s) => {
-    if (s.userId === nextUserId) return s;
-    if (SYSTEM_USER_IDS.has(s.userId)) return s;
-    if (DEMO_SEED_SCAN_IDS.has(s.id)) return s;
-    return { ...s, userId: nextUserId };
-  });
-
   return stripDemoSeedScans(next);
 }
 
@@ -105,6 +98,8 @@ export interface SpotterState {
   feedReactions: FeedReaction[];
   feedComments: FeedComment[];
   weeklyPoints: number;
+  /** Bumped when a scan photo is replaced in-place so ScanPhoto reloads signed URLs. */
+  photoVersions: Record<string, number>;
   spotDraft: SpotDraft;
   setSpotDraft: (draft: Partial<SpotDraft>) => void;
   clearSpotDraft: () => void;
@@ -129,11 +124,33 @@ export interface SpotterState {
   assignPendingBreed: (
     scanId: string,
     breedId: string,
+    options?: { coatColourId?: string | null; coatColourNote?: string | null },
   ) => {
     isFirstBreed: boolean;
     updatedScan: ScanRecord | null;
     matchedFeatured: boolean;
   };
+  /**
+   * Mark a pending scan as resolved without identifying the breed (user chose
+   * "Other / Unknown"). The scan stays in the user's history but no longer
+   * blocks the Untagged section and doesn't unlock any Dogdex tile.
+   */
+  resolvePendingScanAsOther: (scanId: string) => ScanRecord | null;
+  /**
+   * Patch editable non-breed fields on one of the current user's scans
+   * (location, comment, privacy, coat colour). Returns the updated record so
+   * the caller can persist it to Supabase.
+   */
+  updateScanDetails: (
+    scanId: string,
+    fields: {
+      locationLabel?: string | null;
+      spotComment?: string | null;
+      isPrivate?: boolean;
+      coatColourId?: string | null;
+      coatColourNote?: string | null;
+    },
+  ) => ScanRecord | null;
   /**
    * Merge scans + dog_profiles fetched from Supabase into local state.
    * Remote rows for the given `userId` overwrite local copies by `id`; any local
@@ -147,6 +164,9 @@ export interface SpotterState {
   }) => void;
   /** Replace scans after remote sync; recomputes badges and totalScans for the signed-in user. */
   applyScansAfterSync: (scans: ScanRecord[]) => void;
+  bumpPhotoVersion: (scanId: string) => void;
+  /** Load built-in demo friends, leagues, and sample scans (demo mode only). */
+  loadDemoSeed: () => void;
   setAvatar: (avatarUrl: string) => void;
   setCurrentUserIdentity: (input: {
     id: string;
@@ -454,36 +474,57 @@ const starterFeedComments: FeedComment[] = [
   },
 ];
 
+function deriveRecentBreedIdsFromScans(userId: string, scans: ScanRecord[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of scans) {
+    if (s.userId !== userId || !s.breedId) continue;
+    if (seen.has(s.breedId)) continue;
+    seen.add(s.breedId);
+    out.push(s.breedId);
+    if (out.length >= RECENT_BREED_LIMIT) break;
+  }
+  return out;
+}
+
+function scrubDogProfilesForUser(userId: string, scans: ScanRecord[], existing: DogProfile[]): DogProfile[] {
+  const linkedIds = new Set(
+    scans.filter((s) => s.userId === userId && s.dogProfileId).map((s) => s.dogProfileId as string),
+  );
+  return existing.filter((d) => d.ownerId === userId || linkedIds.has(d.id));
+}
+
+/** Empty progress for signed-out / fresh installs — no fake friends, leagues, or demo scans. */
+const emptyShellUser: UserProfile = {
+  id: "guest",
+  username: "",
+  avatarUrl: null,
+  totalScans: 0,
+  createdAt: new Date().toISOString(),
+  city: "",
+  country: "",
+};
+
 export const useSpotterStore = create<SpotterState>()(
   (set, get) => ({
   themeMode: "light",
-  currentUser: starterUser,
+  currentUser: emptyShellUser,
   linkedAuthUserId: null,
   breeds: breedsCatalog,
-  scans: starterScans,
-  dogProfiles: starterDogProfiles,
+  scans: [],
+  dogProfiles: [],
   journalDogs: [],
-  recentBreedIds: ["cavoodle", "border-collie", "golden-retriever"],
+  recentBreedIds: [],
   featuredBreedId: pickFeaturedBreedIdForTodayNoRepeat(breedsCatalog),
   featuredBreedDateKey: getDateKey(),
-  badges: ["first_spot", "featured_hunter", "ten_breeds"],
-  friends: starterFriends,
-  pendingFriendRequests: starterPendingFriendRequests,
-  leagues: [
-    {
-      id: "league-1",
-      name: "Park Pals",
-      createdBy: starterUser.id,
-      createdAt: "2026-04-07T08:00:00.000Z",
-      inviteCode: "PARKPLS1",
-      maxMembers: 20,
-      endsAt: null,
-      memberCount: 3,
-    },
-  ],
-  feedReactions: starterFeedReactions,
-  feedComments: starterFeedComments,
-  weeklyPoints: 4,
+  badges: [],
+  friends: [],
+  pendingFriendRequests: [],
+  leagues: [],
+  feedReactions: [],
+  feedComments: [],
+  weeklyPoints: 0,
+  photoVersions: {},
   spotDraft: {
     photoUri: null,
     locationLat: null,
@@ -669,7 +710,7 @@ export const useSpotterStore = create<SpotterState>()(
         scans: st.scans.map((s) => (s.id === scanId ? { ...s, isPrivate } : s)),
       };
     }),
-  assignPendingBreed: (scanId, breedId) => {
+  assignPendingBreed: (scanId, breedId, options) => {
     let result: {
       isFirstBreed: boolean;
       updatedScan: ScanRecord | null;
@@ -692,12 +733,25 @@ export const useSpotterStore = create<SpotterState>()(
           s.id !== scanId,
       );
       const isFirstBreed = !alreadyHas;
+
+      const hasCoatOverride = options !== undefined && "coatColourId" in options;
+      const nextCoatId = hasCoatOverride ? options?.coatColourId ?? null : scan.coatColourId;
+      const trimmedNote = options?.coatColourNote?.trim() ? options.coatColourNote.trim() : null;
+      const nextCoatNote =
+        nextCoatId === COAT_OTHER_ID
+          ? hasCoatOverride
+            ? trimmedNote
+            : scan.coatColourNote
+          : null;
+
       const updatedScan: ScanRecord = {
         ...scan,
         breedId,
         isPendingBreed: false,
         matchedFeaturedBreed: matchedFeatured,
         pointsAwarded: nextAwarded,
+        coatColourId: nextCoatId,
+        coatColourNote: nextCoatNote,
       };
       const nextScans = state.scans.map((s) => (s.id === scanId ? updatedScan : s));
       const hadTopDogOwner = state.badges.includes("top_dog_owner");
@@ -712,6 +766,79 @@ export const useSpotterStore = create<SpotterState>()(
       };
     });
     return result;
+  },
+  updateScanDetails: (scanId, fields) => {
+    let updated: ScanRecord | null = null;
+    set((state) => {
+      const scan = state.scans.find((s) => s.id === scanId);
+      if (!scan || scan.userId !== state.currentUser.id) return {};
+
+      const nextLocationLabel =
+        "locationLabel" in fields
+          ? fields.locationLabel?.trim()
+            ? fields.locationLabel.trim().slice(0, MAX_SCAN_LOCATION_LABEL_LENGTH)
+            : null
+          : scan.locationLabel;
+
+      const nextSpotComment =
+        "spotComment" in fields
+          ? fields.spotComment?.trim()
+            ? fields.spotComment.trim().slice(0, MAX_SPOT_COMMENT_LENGTH)
+            : null
+          : scan.spotComment;
+
+      const nextIsPrivate =
+        "isPrivate" in fields && fields.isPrivate !== undefined ? fields.isPrivate : scan.isPrivate;
+
+      const hasCoatOverride = "coatColourId" in fields;
+      const nextCoatId = hasCoatOverride ? fields.coatColourId ?? null : scan.coatColourId;
+      const trimmedNote = fields.coatColourNote?.trim() ? fields.coatColourNote.trim() : null;
+      const nextCoatNote =
+        nextCoatId === COAT_OTHER_ID
+          ? hasCoatOverride
+            ? trimmedNote
+            : scan.coatColourNote
+          : null;
+
+      updated = {
+        ...scan,
+        locationLabel: nextLocationLabel,
+        spotComment: nextSpotComment,
+        isPrivate: nextIsPrivate,
+        coatColourId: nextCoatId,
+        coatColourNote: nextCoatNote,
+      };
+      const nextScans = state.scans.map((s) => (s.id === scanId ? updated! : s));
+      return { scans: nextScans };
+    });
+    return updated;
+  },
+  resolvePendingScanAsOther: (scanId) => {
+    let updated: ScanRecord | null = null;
+    set((state) => {
+      const scan = state.scans.find((s) => s.id === scanId);
+      if (!scan || scan.userId !== state.currentUser.id) return {};
+      const delta = -scan.pointsAwarded;
+      updated = {
+        ...scan,
+        breedId: null,
+        isPendingBreed: false,
+        matchedFeaturedBreed: false,
+        pointsAwarded: 0,
+        coatColourId: null,
+        coatColourNote: null,
+      };
+      const nextScans = state.scans.map((s) => (s.id === scanId ? updated! : s));
+      const hadTopDogOwner = state.badges.includes("top_dog_owner");
+      const scanBadges = recomputeScanBadges(nextScans, state.breeds, state.currentUser.id);
+      const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+      return {
+        scans: nextScans,
+        weeklyPoints: state.weeklyPoints + delta,
+        badges,
+      };
+    });
+    return updated;
   },
   hydrateUserScansFromRemote: ({ userId, scans: remoteScans, dogProfiles: remoteDogs }) =>
     set((state) => {
@@ -760,6 +887,39 @@ export const useSpotterStore = create<SpotterState>()(
         currentUser: { ...state.currentUser, totalScans: userScanCount },
       };
     }),
+  bumpPhotoVersion: (scanId) =>
+    set((state) => ({
+      photoVersions: {
+        ...state.photoVersions,
+        [scanId]: (state.photoVersions[scanId] ?? 0) + 1,
+      },
+    })),
+  loadDemoSeed: () =>
+    set({
+      currentUser: starterUser,
+      scans: starterScans,
+      dogProfiles: starterDogProfiles,
+      recentBreedIds: ["cavoodle", "border-collie", "golden-retriever"],
+      badges: ["first_spot", "featured_hunter", "ten_breeds"],
+      friends: starterFriends,
+      pendingFriendRequests: starterPendingFriendRequests,
+      leagues: [
+        {
+          id: "league-1",
+          name: "Park Pals",
+          createdBy: starterUser.id,
+          createdAt: "2026-04-07T08:00:00.000Z",
+          inviteCode: "PARKPLS1",
+          maxMembers: 20,
+          endsAt: null,
+          memberCount: 3,
+        },
+      ],
+      feedReactions: starterFeedReactions,
+      feedComments: starterFeedComments,
+      weeklyPoints: 4,
+      linkedAuthUserId: null,
+    }),
   setAvatar: (avatarUrl) =>
     set((state) => ({
       currentUser: {
@@ -783,16 +943,37 @@ export const useSpotterStore = create<SpotterState>()(
 
       const userScanCount = scans.filter((s) => s.userId === nextId && !s.isPendingBreed).length;
       const scanBadges = isRealAuth ? recomputeScanBadges(scans, state.breeds, nextId) : state.badges;
-      const hadTopDogOwner = state.badges.includes("top_dog_owner");
-      const badges = isRealAuth
-        ? mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner)
-        : state.badges;
+
+      const hadDemoLeak =
+        state.currentUser.id === "demo-user" ||
+        state.currentUser.id === "guest" ||
+        state.friends.some((f) => SYSTEM_USER_IDS.has(f.id)) ||
+        state.leagues.some((l) => l.inviteCode === "PARKPLS1" || l.id === "league-1") ||
+        state.scans.some((s) => DEMO_SEED_SCAN_IDS.has(s.id));
+
+      const scrubSocial = isRealAuth && hadDemoLeak;
+
+      const weeklyPoints = isRealAuth
+        ? scans.filter((s) => s.userId === nextId).reduce((sum, s) => sum + s.pointsAwarded, 0)
+        : state.weeklyPoints;
 
       return {
         scans,
         journalDogs,
-        badges,
+        badges: scanBadges,
         linkedAuthUserId: isRealAuth ? nextId : state.linkedAuthUserId,
+        friends: scrubSocial ? [] : state.friends,
+        pendingFriendRequests: scrubSocial ? [] : state.pendingFriendRequests,
+        leagues: scrubSocial ? [] : state.leagues,
+        feedReactions: scrubSocial ? [] : state.feedReactions,
+        feedComments: scrubSocial ? [] : state.feedComments,
+        weeklyPoints: scrubSocial ? weeklyPoints : state.weeklyPoints,
+        recentBreedIds: scrubSocial
+          ? deriveRecentBreedIdsFromScans(nextId, scans)
+          : state.recentBreedIds,
+        dogProfiles: scrubSocial
+          ? scrubDogProfilesForUser(nextId, scans, state.dogProfiles)
+          : state.dogProfiles,
         currentUser: {
           ...state.currentUser,
           id: nextId,

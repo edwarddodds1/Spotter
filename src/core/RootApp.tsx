@@ -232,8 +232,9 @@ function RootAppInner() {
               {!isSupabaseConfigured ? (
                 <View className="bg-amber px-4 py-2">
                   <Text className="text-center text-xs font-semibold text-white">
-                    Supabase not configured in this build. On Vercel set Supabase_URL and
-                    Supabase_Publishable_Key (or EXPO_PUBLIC_* / SUPABASE_*), then redeploy.
+                    {__DEV__
+                      ? "Supabase not configured. Set Supabase_URL + Supabase_Publishable_Key (or EXPO_PUBLIC_* aliases) in your env, then restart."
+                      : "We're having trouble reaching the server. Please refresh in a minute."}
                   </Text>
                 </View>
               ) : null}
