@@ -15,6 +15,7 @@
     "eas:build:ios:submit": "eas build --platform ios --profile production --auto-submit",
     "eas:submit:ios": "eas submit --platform ios --latest --profile production",
     "preview:web": "npx serve dist",
+    "smoke:web": "node scripts/smoke-test-web.mjs",
     "typecheck": "tsc --noEmit",
     "sprites:transparent": "node scripts/apply-sprite-sheet-transparency.mjs",
     "line-art:split": "node scripts/split-line-art-doodles.mjs",

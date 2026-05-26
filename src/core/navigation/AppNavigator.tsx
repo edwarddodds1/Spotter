@@ -7,6 +7,8 @@ import { useLayoutWindowDimensions } from "@/context/WebPreviewDimensionsContext
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { AppMark } from "@/components/AppMark";
+import { PrivacyScreen } from "@/features/legal/PrivacyScreen";
+import { TermsScreen } from "@/features/legal/TermsScreen";
 import { DogdexScreen } from "@/features/dogdex/DogdexScreen";
 import { BreedDetailScreen } from "@/features/dogdex/BreedDetailScreen";
 import { EditScanScreen } from "@/features/dogdex/EditScanScreen";
@@ -254,6 +256,8 @@ export function AppNavigator() {
           <Stack.Screen name="DogProfile" component={DogProfileScreen} options={{ title: "Dog Profile" }} />
           <Stack.Screen name="TopDogs" component={TopDogsScreen} options={{ title: "Top Dogs" }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
+          <Stack.Screen name="Privacy" component={PrivacyScreen} options={{ title: "Privacy" }} />
+          <Stack.Screen name="Terms" component={TermsScreen} options={{ title: "Terms" }} />
         </Stack.Navigator>
       </NavigationContainer>
     </View>

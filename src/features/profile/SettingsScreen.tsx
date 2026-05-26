@@ -1,11 +1,15 @@
 import { Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
+import type { RootStackParamList } from "@/core/navigation/types";
 import { supabase } from "@/lib/supabase/client";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSpotterStore } from "@/store/useSpotterStore";
 
 export function SettingsScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const themeMode = useSpotterStore((state) => state.themeMode);
   const setThemeMode = useSpotterStore((state) => state.setThemeMode);
   const signOutDemo = useAuthStore((state) => state.signOutDemo);
@@ -40,6 +44,15 @@ export function SettingsScreen() {
             <Text className="font-semibold text-red-700 dark:text-red-400">Sign out</Text>
           </Pressable>
         </View>
+      </View>
+
+      <View className="mt-6 flex-row justify-center gap-6 px-4">
+        <Pressable onPress={() => navigation.navigate("Privacy")}>
+          <Text className="text-sm font-medium text-zinc-600 underline dark:text-zinc-400">Privacy</Text>
+        </Pressable>
+        <Pressable onPress={() => navigation.navigate("Terms")}>
+          <Text className="text-sm font-medium text-zinc-600 underline dark:text-zinc-400">Terms</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );

@@ -341,6 +341,9 @@ export function AuthScreen() {
             </Pressable>
           ) : null}
         </View>
+        <Text className="mt-4 px-2 text-center text-xs leading-5 text-zinc-500 dark:text-zinc-500">
+          By continuing you agree to Spotter&apos;s pilot Terms and Privacy notice — full text inside the app under Settings.
+        </Text>
     </>
   );
 

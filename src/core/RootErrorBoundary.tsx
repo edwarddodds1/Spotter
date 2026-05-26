@@ -1,6 +1,7 @@
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
 import { Platform, ScrollView, Text, View, Pressable } from "react-native";
 
+import { reportError } from "@/lib/errorReporter";
 import { clearPersistedSpotterState } from "@/store/spotterPersistence";
 
 type Props = { children: ReactNode };
@@ -20,8 +21,26 @@ export class RootErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[RootErrorBoundary] Render crash:", error, info?.componentStack);
+    reportError(error, {
+      tags: { source: "RootErrorBoundary" },
+      extra: { componentStack: info?.componentStack ?? "" },
+    });
     this.setState({ error, info });
   }
+
+  private copyErrorDetails = () => {
+    const message = this.state.error?.message ?? "Unknown error";
+    const stack = this.state.error?.stack ?? "";
+    const componentStack = this.state.info?.componentStack ?? "";
+    const payload = `Spotter crash:\n${message}\n\nStack:\n${stack}\n\nComponent stack:\n${componentStack}`;
+    try {
+      if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(payload);
+      }
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
 
   private clearAndReload = () => {
     try {
@@ -53,21 +72,32 @@ export class RootErrorBoundary extends Component<Props, State> {
           Something went wrong while loading Spotter
         </Text>
         <Text style={{ fontSize: 13, color: "#111827", marginBottom: 12 }}>{message}</Text>
-        <Pressable
-          onPress={this.clearAndReload}
-          style={{
-            alignSelf: "flex-start",
-            backgroundColor: "#BA7517",
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            borderRadius: 8,
-            marginBottom: 16,
-          }}
-        >
-          <Text style={{ color: "#fff", fontWeight: "600" }}>
-            Reset local data and reload
-          </Text>
-        </Pressable>
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+          <Pressable
+            onPress={this.clearAndReload}
+            style={{
+              backgroundColor: "#BA7517",
+              paddingHorizontal: 14,
+              paddingVertical: 10,
+              borderRadius: 8,
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600" }}>Reset and reload</Text>
+          </Pressable>
+          {Platform.OS === "web" ? (
+            <Pressable
+              onPress={this.copyErrorDetails}
+              style={{
+                backgroundColor: "#e5e7eb",
+                paddingHorizontal: 14,
+                paddingVertical: 10,
+                borderRadius: 8,
+              }}
+            >
+              <Text style={{ color: "#111827", fontWeight: "600" }}>Copy error details</Text>
+            </Pressable>
+          ) : null}
+        </View>
         <ScrollView style={{ flex: 1 }}>
           {stack ? (
             <Text style={{ fontFamily: "monospace" as any, fontSize: 11, color: "#374151" }}>

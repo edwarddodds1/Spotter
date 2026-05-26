@@ -11,6 +11,8 @@ export type RootStackParamList = {
   DogProfile: { dogProfileId: string };
   TopDogs: undefined;
   Settings: undefined;
+  Privacy: undefined;
+  Terms: undefined;
 };
 
 export type TabParamList = {
