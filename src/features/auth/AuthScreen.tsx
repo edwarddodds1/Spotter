@@ -13,17 +13,21 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppMark } from "@/components/AppMark";
+import { friendlyAuthErrorMessage } from "@/lib/authErrorMessages";
+import { isDemoModeAllowed } from "@/lib/pilotFeatures";
 import { signInWithGoogle } from "@/lib/supabase/auth";
 import { explainAuthNetworkFailure, isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { ensureUserProfile } from "@/lib/supabase/profile";
-import { getWebAuthRedirectTo } from "@/lib/supabase/redirect";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
   const enableDemoMode = useAuthStore((state) => state.enableDemoMode);
+  const authRedirectNotice = useAuthStore((state) => state.authRedirectNotice);
+  const setAuthRedirectNotice = useAuthStore((state) => state.setAuthRedirectNotice);
   const setAuthSession = useAuthStore((state) => state.setSession);
   const setAuthReady = useAuthStore((state) => state.setReady);
+  const showDemoEntry = isDemoModeAllowed();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -72,7 +76,7 @@ export function AuthScreen() {
     if (normalized.includes("failed to fetch") || normalized.includes("network request failed")) {
       return `Unable to reach Supabase. ${explainAuthNetworkFailure()}`;
     }
-    return message;
+    return friendlyAuthErrorMessage(message);
   };
 
   const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -91,6 +95,12 @@ export function AuthScreen() {
     setAuthError(null);
     setAuthInfo(null);
   };
+
+  useEffect(() => {
+    if (!authRedirectNotice) return;
+    showAuthError(authRedirectNotice);
+    setAuthRedirectNotice(null);
+  }, [authRedirectNotice, setAuthRedirectNotice]);
 
   const handleEmailAuth = async () => {
     if (loading) return;
@@ -191,40 +201,6 @@ export function AuthScreen() {
       setAuthSession(activeSession);
       setAuthReady(true);
       clearAuthMessages();
-    } catch (err) {
-      const raw = err instanceof Error ? err.message : "Something went wrong. Try again.";
-      showAuthError(raw);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async () => {
-    if (!isSupabaseConfigured) {
-      showAuthError(
-        "Supabase is not configured. Set Supabase_URL and Supabase_Publishable_Key (or EXPO_PUBLIC_* / SUPABASE_*), then rebuild.",
-      );
-      return;
-    }
-    const nextEmail = normalizeEmail(email);
-    if (!nextEmail) {
-      showAuthError("Enter your email first, then tap Forgot password.");
-      return;
-    }
-    if (!isValidEmail(nextEmail)) {
-      showAuthError("Enter a valid email address.");
-      return;
-    }
-    try {
-      clearAuthMessages();
-      setLoading(true);
-      const redirectTo = getWebAuthRedirectTo("/");
-      const { error } = await supabase.auth.resetPasswordForEmail(nextEmail, redirectTo ? { redirectTo } : undefined);
-      if (error) {
-        showAuthError(error.message);
-        return;
-      }
-      showAuthInfo("If that email has an account, we sent a reset link. Check your inbox.");
     } catch (err) {
       const raw = err instanceof Error ? err.message : "Something went wrong. Try again.";
       showAuthError(raw);
@@ -339,11 +315,6 @@ export function AuthScreen() {
             <Text className="text-sm font-medium text-emerald-700 dark:text-emerald-400">{authInfo}</Text>
           ) : null}
           {authError ? <Text className="text-sm font-medium text-red-600 dark:text-red-400">{authError}</Text> : null}
-          {!isSignUp ? (
-            <Pressable onPress={handleForgotPassword} disabled={loading}>
-              <Text className="text-center text-sm font-medium text-amber">Forgot password?</Text>
-            </Pressable>
-          ) : null}
           <Pressable
             onPress={handleGoogleAuth}
             disabled={loading}
@@ -362,11 +333,13 @@ export function AuthScreen() {
               {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
             </Text>
           </Pressable>
-          <Pressable onPress={enableDemoMode} disabled={loading}>
-            <Text className="text-center text-sm text-zinc-600 dark:text-zinc-400">
-              Continue in demo mode
-            </Text>
-          </Pressable>
+          {showDemoEntry ? (
+            <Pressable onPress={enableDemoMode} disabled={loading}>
+              <Text className="text-center text-sm text-zinc-600 dark:text-zinc-400">
+                Continue in demo mode
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
     </>
   );

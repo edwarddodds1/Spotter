@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, ImageBackground, Platform, Pressable, Text, View } from "react-native";
+import { Alert, Platform, Pressable, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import type { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
@@ -8,6 +9,7 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 
 import { SpotPhotoEditorModal } from "@/components/SpotPhotoEditorModal";
+import { isDemoModeAllowed } from "@/lib/pilotFeatures";
 import { reverseGeocodeForSpot } from "@/lib/spotLocationLabel";
 import { useSpotterStore } from "@/store/useSpotterStore";
 import type { TabParamList } from "@/core/navigation/types";
@@ -104,9 +106,14 @@ export function SpotCameraScreen({ navigation }: Props) {
         Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(() => null),
       ]);
 
-      const photoUri =
-        cameraResult?.uri ??
-        "https://images.unsplash.com/photo-1518717758536-85ae29035b6d?auto=format&fit=crop&w=1000&q=80";
+      const photoUri = cameraResult?.uri;
+      if (!photoUri) {
+        Alert.alert(
+          "No photo captured",
+          isWeb ? "Try again or tap Upload photo to pick an image from your device." : "Try again.",
+        );
+        return;
+      }
 
       const lat = locationResult?.coords.latitude ?? null;
       const lng = locationResult?.coords.longitude ?? null;
@@ -126,6 +133,38 @@ export function SpotCameraScreen({ navigation }: Props) {
     } finally {
       setIsCapturing(false);
     }
+  };
+
+  const beginCaptureWithUri = async (photoUri: string) => {
+    const locationResult = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }).catch(
+      () => null,
+    );
+    const lat = locationResult?.coords.latitude ?? null;
+    const lng = locationResult?.coords.longitude ?? null;
+    let locationLabel: string | null = null;
+    if (lat != null && lng != null) {
+      locationLabel = await reverseGeocodeForSpot(lat, lng);
+    }
+    setPending({
+      photoUri,
+      locationLat: lat,
+      locationLng: lng,
+      locationLabel,
+    });
+  };
+
+  const pickUploadPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Photos access needed", "Allow photo library access to upload a spot image.");
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]?.uri) return;
+    await beginCaptureWithUri(result.assets[0].uri);
   };
 
   const commitPending = (finalPhotoUri: string) => {
@@ -195,16 +234,14 @@ export function SpotCameraScreen({ navigation }: Props) {
 
   if (!permission.granted) {
     const isBlocked = permission.canAskAgain === false;
+    const showDemoPhoto = isDemoModeAllowed();
     return (
-      <ImageBackground
-        source={{ uri: "https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=1000&q=80" }}
-        className="flex-1 justify-end bg-white px-6 pb-20 dark:bg-ink"
-      >
+      <View className="flex-1 justify-end bg-zinc-950 px-6 pb-20">
         <Text className="text-4xl font-bold text-white">Spot a dog</Text>
         <Text className="mt-3 text-base leading-6 text-white/85">
           {isBlocked
-            ? "Camera access is blocked. Enable it in your device or browser settings, then come back. You can still use a sample image for now."
-            : "Camera access powers the capture-first flow. Allow access to start spotting, or use a sample image to explore."}
+            ? "Camera access is blocked. Enable it in settings, or upload a photo to keep spotting."
+            : "Allow camera access to capture spots, or upload a photo from your library."}
         </Text>
         <Pressable
           onPress={() => {
@@ -217,26 +254,33 @@ export function SpotCameraScreen({ navigation }: Props) {
             {isBlocked ? "Try again" : "Grant camera access"}
           </Text>
         </Pressable>
-        <Pressable
-          onPress={() => {
-            setSpotDraft({
-              photoUri:
-                "https://images.unsplash.com/photo-1518717758536-85ae29035b6d?auto=format&fit=crop&w=1000&q=80",
-              locationLat: null,
-              locationLng: null,
-              locationLabel: null,
-              coatColourId: null,
-              coatColourNote: null,
-              spotComment: null,
-              isPrivate: false,
-            });
-            navigation.getParent()?.navigate("BreedSelector");
-          }}
-          className="mt-3 rounded-2xl border border-white/30 px-4 py-4"
-        >
-          <Text className="text-center font-semibold text-white">Use demo photo</Text>
-        </Pressable>
-      </ImageBackground>
+        {isWeb ? (
+          <Pressable onPress={() => void pickUploadPhoto()} className="mt-3 rounded-2xl border border-white/30 px-4 py-4">
+            <Text className="text-center font-semibold text-white">Upload photo</Text>
+          </Pressable>
+        ) : null}
+        {showDemoPhoto ? (
+          <Pressable
+            onPress={() => {
+              setSpotDraft({
+                photoUri:
+                  "https://images.unsplash.com/photo-1518717758536-85ae29035b6d?auto=format&fit=crop&w=1000&q=80",
+                locationLat: null,
+                locationLng: null,
+                locationLabel: null,
+                coatColourId: null,
+                coatColourNote: null,
+                spotComment: null,
+                isPrivate: false,
+              });
+              navigation.getParent()?.navigate("BreedSelector");
+            }}
+            className="mt-3 rounded-2xl border border-white/30 px-4 py-4"
+          >
+            <Text className="text-center font-semibold text-white">Use demo photo</Text>
+          </Pressable>
+        ) : null}
+      </View>
     );
   }
 
@@ -293,14 +337,25 @@ export function SpotCameraScreen({ navigation }: Props) {
             ) : null}
 
             <View className="items-center">
-              <Pressable
-                onPress={flipCamera}
-                className="absolute bottom-2 left-0 h-11 w-11 items-center justify-center rounded-full bg-black/35"
-                accessibilityRole="button"
-                accessibilityLabel="Flip camera"
-              >
-                <MaterialCommunityIcons name="camera-flip-outline" size={20} color="#ffffff" />
-              </Pressable>
+              {isWeb ? (
+                <Pressable
+                  onPress={() => void pickUploadPhoto()}
+                  className="absolute bottom-2 left-0 h-11 items-center justify-center rounded-full bg-black/35 px-3"
+                  accessibilityRole="button"
+                  accessibilityLabel="Upload photo"
+                >
+                  <Text className="text-xs font-semibold text-white">Upload</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={flipCamera}
+                  className="absolute bottom-2 left-0 h-11 w-11 items-center justify-center rounded-full bg-black/35"
+                  accessibilityRole="button"
+                  accessibilityLabel="Flip camera"
+                >
+                  <MaterialCommunityIcons name="camera-flip-outline" size={20} color="#ffffff" />
+                </Pressable>
+              )}
               <Pressable
                 onPress={capture}
                 disabled={isCapturing}
@@ -312,7 +367,7 @@ export function SpotCameraScreen({ navigation }: Props) {
                 {isCapturing
                   ? "Saving..."
                   : isWeb
-                    ? "Tap to snap"
+                    ? "Tap to snap or upload a photo"
                     : "Tap to snap • pinch to zoom • volume down also fires"}
               </Text>
             </View>

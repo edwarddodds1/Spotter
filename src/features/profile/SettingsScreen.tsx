@@ -21,8 +21,8 @@ export function SettingsScreen() {
       <View className="mt-4 px-4">
         <View className="rounded-3xl border border-zinc-200/80 bg-white p-5 dark:border-border dark:bg-card">
           <View className="gap-4">
-            <SettingRow label="Featured breed alerts" />
-            <SettingRow label="League updates" />
+            <SettingRow label="Featured breed alerts" comingSoon />
+            <SettingRow label="League updates" comingSoon />
             <SettingRow
               label="Dark mode"
               value={themeMode === "dark"}
@@ -49,15 +49,26 @@ function SettingRow({
   label,
   value = true,
   onValueChange,
+  comingSoon = false,
 }: {
   label: string;
   value?: boolean;
   onValueChange?: (next: boolean) => void;
+  comingSoon?: boolean;
 }) {
   return (
     <View className="flex-row items-center justify-between rounded-2xl bg-zinc-50 px-4 py-3 dark:bg-zinc-950/80">
-      <Text className="text-black dark:text-white">{label}</Text>
-      <Switch value={value} onValueChange={onValueChange} />
+      <View>
+        <Text className="text-black dark:text-white">{label}</Text>
+        {comingSoon ? (
+          <Text className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">Coming soon</Text>
+        ) : null}
+      </View>
+      {comingSoon ? (
+        <Switch value={false} disabled />
+      ) : (
+        <Switch value={value} onValueChange={onValueChange} />
+      )}
     </View>
   );
 }

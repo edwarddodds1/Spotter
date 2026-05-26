@@ -23,15 +23,7 @@ export function LeagueDetailScreen({ route }: Props) {
   const members = useMemo<Array<{ id: string; username: string; avatarUrl: string | null; city: string; country: string }>>(() => {
     if (!league) return [];
     const friendMembers = friends.slice(0, Math.max(0, league.memberCount - 1));
-    const remainingSlots = Math.max(0, league.memberCount - (1 + friendMembers.length));
-    const leagueGuests = Array.from({ length: remainingSlots }, (_, index) => ({
-      id: `league-guest-${league.id}-${index}`,
-      username: `league.pup.${index + 1}`,
-      avatarUrl: null,
-      city: "",
-      country: "",
-    }));
-    return [currentUser, ...friendMembers, ...leagueGuests];
+    return [currentUser, ...friendMembers];
   }, [currentUser, friends, league]);
 
   const friendIds = useMemo(() => new Set(friends.map((friend) => friend.id)), [friends]);
@@ -39,16 +31,16 @@ export function LeagueDetailScreen({ route }: Props) {
 
   const leaderboard = useMemo(() => {
     return members
-      .map((member, index) => ({
+      .map((member) => ({
         userId: member.id,
         username: member.username,
         avatarUrl: member.avatarUrl,
-        badges: badges.slice(0, Math.max(1, badges.length - index)),
-        weeklyPoints: Math.max(weeklyPoints - index * 3, 1),
+        badges: member.id === currentUser.id ? badges : [],
+        weeklyPoints: member.id === currentUser.id ? weeklyPoints : 0,
       }))
       .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
       .map((entry, index) => ({ ...entry, rank: index + 1 }));
-  }, [badges, members, weeklyPoints]);
+  }, [badges, currentUser.id, members, weeklyPoints]);
 
   if (!league) {
     return (

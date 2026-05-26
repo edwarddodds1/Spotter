@@ -327,7 +327,11 @@ export function ProfileScreen() {
           </View>
 
           <View className="flex-row gap-2 px-4 py-4">
-            <Stat label="Scans" value={String(scans.filter((s) => !s.isPendingBreed).length)} icon="camera-outline" />
+            <Stat
+              label="Scans"
+              value={String(scans.filter((s) => s.userId === currentUser.id && !s.isPendingBreed).length)}
+              icon="camera-outline"
+            />
             <Stat label="Breeds" value={`${collectedCount}/${DOGDEX_TOTAL}`} icon="paw" />
             <Stat label="Leagues" value={String(leagues.length)} icon="trophy-outline" />
           </View>

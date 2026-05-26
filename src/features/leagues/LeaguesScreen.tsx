@@ -16,7 +16,9 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { useNavigation } from "@react-navigation/native";
 
+import { ComingSoonCard } from "@/components/ComingSoonCard";
 import { UserAvatar } from "@/components/UserAvatar";
+import { PILOT_SOCIAL_ENABLED } from "@/lib/pilotFeatures";
 import {
   LEAGUE_CAPACITY_PRESETS,
   leagueInviteUrl,
@@ -61,7 +63,22 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export function LeaguesScreen() {
+function LeaguesPilotComingSoon() {
+  return (
+    <ScrollView className="flex-1 bg-white px-4 pt-8 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
+      <Text className="text-4xl font-black text-black dark:text-white">Leagues</Text>
+      <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        Compete with friends on weekly points — arriving in a future update.
+      </Text>
+      <ComingSoonCard
+        title="Leagues are coming soon"
+        body="The pilot focuses on spotting and your Dogdex. Invite friends and league seasons will land in v2."
+      />
+    </ScrollView>
+  );
+}
+
+function LeaguesScreenContent() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Friends");
   const [leagueName, setLeagueName] = useState("");
@@ -408,4 +425,9 @@ export function LeaguesScreen() {
       <View className="h-20" />
     </ScrollView>
   );
+}
+
+export function LeaguesScreen() {
+  if (!PILOT_SOCIAL_ENABLED) return <LeaguesPilotComingSoon />;
+  return <LeaguesScreenContent />;
 }

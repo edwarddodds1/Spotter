@@ -224,8 +224,10 @@ export function AppNavigator() {
           <Stack.Screen
             name="LeagueDetail"
             component={LeagueDetailScreen}
-            options={({ route }) => ({
-              title: `${route.params.leagueName} League`,
+            options={({ route }) => {
+              const baseName = route.params.leagueName.replace(/\s+league$/i, "").trim();
+              return {
+              title: `${baseName} League`,
               headerBackVisible: true,
               headerBackButtonDisplayMode: "minimal",
               headerRight: () => (
@@ -245,7 +247,8 @@ export function AppNavigator() {
                   </Text>
                 </View>
               ),
-            })}
+            };
+            }}
           />
           <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: "Friends" }} />
           <Stack.Screen name="DogProfile" component={DogProfileScreen} options={{ title: "Dog Profile" }} />

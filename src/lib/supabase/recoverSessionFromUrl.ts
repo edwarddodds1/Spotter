@@ -1,6 +1,8 @@
 import { Platform } from "react-native";
 
+import { friendlyAuthErrorMessage } from "@/lib/authErrorMessages";
 import { supabase } from "@/lib/supabase/client";
+import { useAuthStore } from "@/store/useAuthStore";
 
 /**
  * After Supabase email confirmation or magic link, the browser may land on:
@@ -18,6 +20,8 @@ export async function recoverWebSessionFromUrl(): Promise<void> {
   const errDesc = searchParams.get("error_description");
   if (err) {
     console.warn("[auth] Supabase redirect error:", err, errDesc ?? "");
+    const raw = errDesc ?? err;
+    useAuthStore.getState().setAuthRedirectNotice(friendlyAuthErrorMessage(raw));
     stripSensitiveQueryParams(url);
     window.history.replaceState({}, "", url.pathname + url.search + url.hash);
     return;
@@ -28,6 +32,7 @@ export async function recoverWebSessionFromUrl(): Promise<void> {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
       console.warn("[auth] exchangeCodeForSession:", error.message);
+      useAuthStore.getState().setAuthRedirectNotice(friendlyAuthErrorMessage(error.message));
       return;
     }
     stripSensitiveQueryParams(url);
@@ -44,6 +49,7 @@ export async function recoverWebSessionFromUrl(): Promise<void> {
     const { error } = await supabase.auth.setSession({ access_token, refresh_token });
     if (error) {
       console.warn("[auth] setSession from hash:", error.message);
+      useAuthStore.getState().setAuthRedirectNotice(friendlyAuthErrorMessage(error.message));
       return;
     }
     url.hash = "";

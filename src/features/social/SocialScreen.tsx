@@ -5,6 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { AppMark } from "@/components/AppMark";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ScanPhoto } from "@/components/ScanPhoto";
 import { PointsBadge } from "@/components/PointsBadge";
 import { RarityBadge } from "@/components/RarityBadge";
@@ -13,6 +14,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { FeedPostSocialBar } from "@/features/social/FeedPostSocialBar";
 import { deleteSpot, replaceScanPhoto } from "@/features/spot/spotService";
 import { shareScanCard } from "@/features/social/shareScanCard";
+import { PILOT_SOCIAL_ENABLED } from "@/lib/pilotFeatures";
 import { resolveScanPhotoDisplayUrl } from "@/lib/supabase/scanPhotoUrl";
 import { getStartOfCurrentWeek } from "@/lib/utils/dates";
 import { palette } from "@/constants/theme";
@@ -50,8 +52,16 @@ export function SocialScreen() {
   const [feedMode, setFeedMode] = useState<FeedMode>("public");
   const [editingScanId, setEditingScanId] = useState<string | null>(null);
   const [editingUri, setEditingUri] = useState<string | null>(null);
+  const [deleteScanId, setDeleteScanId] = useState<string | null>(null);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
   const segmentTrackW = useSharedValue(0);
   const segmentIndex = useSharedValue(0);
+
+  useEffect(() => {
+    if (!shareNotice) return;
+    const timer = setTimeout(() => setShareNotice(null), 2600);
+    return () => clearTimeout(timer);
+  }, [shareNotice]);
 
   const openPhotoEditor = async (scanId: string, photoUrl: string) => {
     try {
@@ -250,10 +260,13 @@ export function SocialScreen() {
             </Text>
           </Pressable>
           <Pressable
-            onPress={() => setFeedMode("friends")}
+            onPress={() => {
+              if (!PILOT_SOCIAL_ENABLED) return;
+              setFeedMode("friends");
+            }}
             className="z-10 flex-1 items-center justify-center"
             accessibilityRole="button"
-            accessibilityState={{ selected: feedMode === "friends" }}
+            accessibilityState={{ selected: feedMode === "friends", disabled: !PILOT_SOCIAL_ENABLED }}
           >
             <Text
               className={`text-xs font-semibold ${feedMode === "friends" ? "text-black dark:text-white" : "text-zinc-500 dark:text-zinc-400"}`}
@@ -263,6 +276,12 @@ export function SocialScreen() {
           </Pressable>
         </View>
 
+        {shareNotice ? (
+          <View className="mb-3 rounded-2xl bg-emerald-50 px-4 py-2.5 dark:bg-emerald-950/30">
+            <Text className="text-center text-sm font-medium text-emerald-800 dark:text-emerald-300">{shareNotice}</Text>
+          </View>
+        ) : null}
+
         {feed.length === 0 ? (
           <View className="items-center rounded-3xl border border-dashed border-zinc-300 bg-white py-14 dark:border-border dark:bg-card">
             <AppMark size={44} style={{ opacity: 0.85 }} />
@@ -271,9 +290,11 @@ export function SocialScreen() {
                 ? scans.some((s) => s.breedId && !s.isPendingBreed && s.isPrivate)
                   ? "All your recent spots are private — turn off “Keep private” when saving, or change privacy in Profile."
                   : "No scans to show yet. Open Spot and log your first breed!"
-                : friends.length === 0
-                  ? "Add friends from the Friends button above to see their public spots here."
-                  : "When your friends share public spots, they’ll show up here."}
+                : !PILOT_SOCIAL_ENABLED
+                  ? "Friends feed is coming soon. Use Public to browse your own public spots for now."
+                  : friends.length === 0
+                    ? "Add friends from the Friends button above to see their public spots here."
+                    : "When your friends share public spots, they’ll show up here."}
             </Text>
           </View>
         ) : (
@@ -310,7 +331,20 @@ export function SocialScreen() {
                     </Pressable>
                   ) : null}
                   <Pressable
-                    onPress={() => shareScanCard(scan, breed)}
+                    onPress={() => {
+                      void (async () => {
+                        const result = await shareScanCard(scan, breed);
+                        if (!result.ok) {
+                          Alert.alert("Share failed", result.reason);
+                          return;
+                        }
+                        if (result.method === "download") {
+                          setShareNotice("Spot card downloaded to your device");
+                        } else {
+                          setShareNotice("Share sheet opened");
+                        }
+                      })();
+                    }}
                     className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
                     accessibilityLabel="Share spot"
                   >
@@ -318,20 +352,7 @@ export function SocialScreen() {
                   </Pressable>
                   {scan.userId === currentUser.id ? (
                     <Pressable
-                      onPress={() => {
-                        Alert.alert(
-                          "Delete this spot?",
-                          "This removes the scan from your journal and feed. Stats and badges will update if needed.",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Delete",
-                              style: "destructive",
-                              onPress: () => void deleteSpot(scan.id),
-                            },
-                          ],
-                        );
-                      }}
+                      onPress={() => setDeleteScanId(scan.id)}
                       className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
                       accessibilityLabel="Delete spot"
                     >
@@ -378,6 +399,19 @@ export function SocialScreen() {
         imageUri={editingUri}
         onClose={closePhotoEditor}
         onSave={handlePhotoSave}
+      />
+      <ConfirmDialog
+        visible={deleteScanId !== null}
+        title="Delete this spot?"
+        message="This removes the scan from your journal and feed. Stats and badges will update if needed."
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setDeleteScanId(null)}
+        onConfirm={() => {
+          const id = deleteScanId;
+          setDeleteScanId(null);
+          if (id) void deleteSpot(id);
+        }}
       />
     </ScrollView>
   );

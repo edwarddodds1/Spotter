@@ -1,10 +1,24 @@
 import { useState } from "react";
 import { Keyboard, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
+import { ComingSoonCard } from "@/components/ComingSoonCard";
 import { UserAvatar } from "@/components/UserAvatar";
+import { PILOT_SOCIAL_ENABLED } from "@/lib/pilotFeatures";
 import { useSpotterStore } from "@/store/useSpotterStore";
 
-export function FriendsScreen() {
+function FriendsPilotComingSoon() {
+  return (
+    <ScrollView className="flex-1 bg-white px-4 pt-8 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
+      <Text className="text-3xl font-bold text-black dark:text-white">Friends</Text>
+      <ComingSoonCard
+        title="Friends are coming soon"
+        body="For the pilot, build your Dogdex and share spots from your profile. Friend requests and a friends-only feed ship in v2."
+      />
+    </ScrollView>
+  );
+}
+
+function FriendsScreenContent() {
   const [username, setUsername] = useState("");
   const friends = useSpotterStore((state) => state.friends);
   const addFriend = useSpotterStore((state) => state.addFriend);
@@ -15,7 +29,9 @@ export function FriendsScreen() {
   return (
     <ScrollView className="flex-1 bg-white px-4 pt-8 dark:bg-ink">
       <Text className="text-3xl font-bold text-black dark:text-white">Friends</Text>
-      <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Search usernames, send requests, and keep your social feed active.</Text>
+      <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        Search usernames, send requests, and keep your social feed active.
+      </Text>
 
       <View className="mt-5 rounded-3xl border border-zinc-200 bg-white p-4 dark:border-border dark:bg-card">
         <TextInput
@@ -73,7 +89,10 @@ export function FriendsScreen() {
         ) : null}
 
         {friends.map((friend) => (
-          <View key={friend.id} className="mb-3 flex-row items-center justify-between rounded-3xl border border-zinc-200 bg-white px-4 py-4 dark:border-border dark:bg-card">
+          <View
+            key={friend.id}
+            className="mb-3 flex-row items-center justify-between rounded-3xl border border-zinc-200 bg-white px-4 py-4 dark:border-border dark:bg-card"
+          >
             <View className="flex-row items-center gap-3">
               <UserAvatar username={friend.username} avatarUrl={friend.avatarUrl} />
               <View>
@@ -87,4 +106,9 @@ export function FriendsScreen() {
       </View>
     </ScrollView>
   );
+}
+
+export function FriendsScreen() {
+  if (!PILOT_SOCIAL_ENABLED) return <FriendsPilotComingSoon />;
+  return <FriendsScreenContent />;
 }
