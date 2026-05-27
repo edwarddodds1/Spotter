@@ -12,8 +12,10 @@ import { AppNavigator } from "@/core/navigation/AppNavigator";
 import { RootErrorBoundary } from "@/core/RootErrorBoundary";
 import { AuthScreen } from "@/features/auth/AuthScreen";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { fetchFriendshipsForUser } from "@/lib/supabase/friendshipsRemote";
 import { recoverWebSessionFromUrl } from "@/lib/supabase/recoverSessionFromUrl";
 import { ensureUserProfile } from "@/lib/supabase/profile";
+import { refreshFriendsScans } from "@/lib/syncFriendScans";
 import { pullAndSyncUserScans } from "@/lib/syncUserScans";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSpotterStore, waitForSpotterStoreHydration } from "@/store/useSpotterStore";
@@ -28,6 +30,7 @@ function RootAppInner() {
   const refreshFeaturedBreedForToday = useSpotterStore((state) => state.refreshFeaturedBreedForToday);
   const setCurrentUserIdentity = useSpotterStore((state) => state.setCurrentUserIdentity);
   const refreshBreedsFromRemote = useSpotterStore((state) => state.refreshBreedsFromRemote);
+  const setFriendshipsFromServer = useSpotterStore((state) => state.setFriendshipsFromServer);
   const { setColorScheme } = useColorScheme();
 
   useEffect(() => {
@@ -204,9 +207,22 @@ function RootAppInner() {
       } catch (err) {
         console.warn("[RootApp] Could not sync scans from Supabase:", err);
       }
+
+      try {
+        const bundle = await fetchFriendshipsForUser(session.user.id);
+        setFriendshipsFromServer(bundle);
+      } catch (err) {
+        console.warn("[RootApp] Could not load friendships from Supabase:", err);
+      }
+
+      try {
+        await refreshFriendsScans();
+      } catch (err) {
+        console.warn("[RootApp] Could not load friends' scans:", err);
+      }
     };
     void run();
-  }, [session, setCurrentUserIdentity]);
+  }, [session, setCurrentUserIdentity, setFriendshipsFromServer]);
 
   useEffect(() => {
     refreshFeaturedBreedForToday();

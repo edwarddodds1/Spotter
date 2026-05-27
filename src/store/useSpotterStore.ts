@@ -93,7 +93,10 @@ export interface SpotterState {
   featuredBreedDateKey: string;
   badges: BadgeType[];
   friends: UserProfile[];
+  /** Friend requests sent TO me, still pending my accept/decline. */
   pendingFriendRequests: UserProfile[];
+  /** Friend requests I have sent, still awaiting the other side's accept. */
+  outgoingFriendRequests: UserProfile[];
   leagues: League[];
   feedReactions: FeedReaction[];
   feedComments: FeedComment[];
@@ -164,6 +167,16 @@ export interface SpotterState {
   }) => void;
   /** Replace scans after remote sync; recomputes badges and totalScans for the signed-in user. */
   applyScansAfterSync: (scans: ScanRecord[]) => void;
+  /**
+   * Replace scans owned by accepted friends with a fresh server snapshot.
+   * Scans for the signed-in user and any other unrelated users are untouched.
+   * Dog profiles are merged in by id.
+   */
+  applyFriendsScansFromRemote: (input: {
+    friendUserIds: string[];
+    scans: ScanRecord[];
+    dogProfiles: DogProfile[];
+  }) => void;
   bumpPhotoVersion: (scanId: string) => void;
   /** Load built-in demo friends, leagues, and sample scans (demo mode only). */
   loadDemoSeed: () => void;
@@ -177,10 +190,26 @@ export interface SpotterState {
   }) => void;
   setUsername: (username: string) => void;
   setUserLocation: (city: string, country: string) => void;
-  addFriend: (username: string) => void;
   addLeagueFriendRequest: (username: string) => void;
-  acceptFriendRequest: (userId: string) => void;
-  declineFriendRequest: (userId: string) => void;
+  /**
+   * Replace local friend / incoming / outgoing lists with the latest bundle
+   * fetched from Supabase. Used by `loadFriendships`.
+   */
+  setFriendshipsFromServer: (bundle: {
+    friends: UserProfile[];
+    incoming: UserProfile[];
+    outgoing: UserProfile[];
+  }) => void;
+  /** Optimistic add to outgoing list after a successful sendFriendRequest. */
+  addOutgoingFriendRequest: (profile: UserProfile) => void;
+  /** Remove an incoming request by the requester's user id (after accept or decline). */
+  removeIncomingRequestById: (fromUserId: string) => void;
+  /** Remove an outgoing request by the recipient's user id (after cancel/decline). */
+  removeOutgoingRequestById: (toUserId: string) => void;
+  /** Promote a pending request from the requester to an accepted friend. */
+  promoteIncomingRequestToFriend: (fromUserId: string) => void;
+  /** Remove a friend from the accepted list (after a successful unfriend). */
+  removeFriendById: (otherUserId: string) => void;
   createLeague: (input: CreateLeagueInput) => void;
   setThemeMode: (mode: "light" | "dark") => void;
   toggleFeedReaction: (scanId: string, kind: FeedReactionKind) => void;
@@ -520,6 +549,7 @@ export const useSpotterStore = create<SpotterState>()(
   badges: [],
   friends: [],
   pendingFriendRequests: [],
+  outgoingFriendRequests: [],
   leagues: [],
   feedReactions: [],
   feedComments: [],
@@ -887,6 +917,29 @@ export const useSpotterStore = create<SpotterState>()(
         currentUser: { ...state.currentUser, totalScans: userScanCount },
       };
     }),
+  applyFriendsScansFromRemote: ({ friendUserIds, scans, dogProfiles }) =>
+    set((state) => {
+      const friendIdSet = new Set(friendUserIds);
+      const remoteIds = new Set(scans.map((s) => s.id));
+      const keptLocal = state.scans.filter((s) => {
+        if (!friendIdSet.has(s.userId)) return true;
+        return !remoteIds.has(s.id) && !s.serverConfirmedAt;
+      });
+      const remoteFriendScans = scans.filter((s) => friendIdSet.has(s.userId));
+      const nextScans = [
+        ...keptLocal.filter((s) => !friendIdSet.has(s.userId)),
+        ...remoteFriendScans,
+        ...keptLocal.filter((s) => friendIdSet.has(s.userId)),
+      ].sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime());
+
+      const existingDogProfiles = new Map(state.dogProfiles.map((d) => [d.id, d] as const));
+      for (const dog of dogProfiles) existingDogProfiles.set(dog.id, dog);
+
+      return {
+        scans: nextScans,
+        dogProfiles: Array.from(existingDogProfiles.values()),
+      };
+    }),
   bumpPhotoVersion: (scanId) =>
     set((state) => ({
       photoVersions: {
@@ -903,6 +956,7 @@ export const useSpotterStore = create<SpotterState>()(
       badges: ["first_spot", "featured_hunter", "ten_breeds"],
       friends: starterFriends,
       pendingFriendRequests: starterPendingFriendRequests,
+      outgoingFriendRequests: [],
       leagues: [
         {
           id: "league-1",
@@ -964,6 +1018,7 @@ export const useSpotterStore = create<SpotterState>()(
         linkedAuthUserId: isRealAuth ? nextId : state.linkedAuthUserId,
         friends: scrubSocial ? [] : state.friends,
         pendingFriendRequests: scrubSocial ? [] : state.pendingFriendRequests,
+        outgoingFriendRequests: scrubSocial ? [] : state.outgoingFriendRequests,
         leagues: scrubSocial ? [] : state.leagues,
         feedReactions: scrubSocial ? [] : state.feedReactions,
         feedComments: scrubSocial ? [] : state.feedComments,
@@ -1004,21 +1059,48 @@ export const useSpotterStore = create<SpotterState>()(
         country: country.trim(),
       },
     })),
-  addFriend: (username) =>
+  setFriendshipsFromServer: ({ friends, incoming, outgoing }) =>
     set((state) => ({
-      friends: [
-        ...state.friends,
-        {
-          id: createId("friend"),
-          username,
-          avatarUrl: null,
-          totalScans: 0,
-          createdAt: new Date().toISOString(),
-          city: "",
-          country: "",
-        },
-      ],
-      badges: state.badges.includes("social_pup") ? state.badges : [...state.badges, "social_pup"],
+      friends,
+      pendingFriendRequests: incoming,
+      outgoingFriendRequests: outgoing,
+      badges:
+        friends.length >= 1 && !state.badges.includes("social_pup")
+          ? [...state.badges, "social_pup"]
+          : state.badges,
+    })),
+  addOutgoingFriendRequest: (profile) =>
+    set((state) =>
+      state.outgoingFriendRequests.some((p) => p.id === profile.id)
+        ? state
+        : { outgoingFriendRequests: [profile, ...state.outgoingFriendRequests] },
+    ),
+  removeIncomingRequestById: (fromUserId) =>
+    set((state) => ({
+      pendingFriendRequests: state.pendingFriendRequests.filter((p) => p.id !== fromUserId),
+    })),
+  removeOutgoingRequestById: (toUserId) =>
+    set((state) => ({
+      outgoingFriendRequests: state.outgoingFriendRequests.filter((p) => p.id !== toUserId),
+    })),
+  promoteIncomingRequestToFriend: (fromUserId) =>
+    set((state) => {
+      const requester = state.pendingFriendRequests.find((p) => p.id === fromUserId);
+      if (!requester) return state;
+      if (state.friends.some((f) => f.id === fromUserId)) {
+        return {
+          pendingFriendRequests: state.pendingFriendRequests.filter((p) => p.id !== fromUserId),
+        };
+      }
+      return {
+        pendingFriendRequests: state.pendingFriendRequests.filter((p) => p.id !== fromUserId),
+        friends: [...state.friends, requester],
+        badges: state.badges.includes("social_pup") ? state.badges : [...state.badges, "social_pup"],
+      };
+    }),
+  removeFriendById: (otherUserId) =>
+    set((state) => ({
+      friends: state.friends.filter((f) => f.id !== otherUserId),
     })),
   addLeagueFriendRequest: (username) =>
     set((state) => {
@@ -1043,20 +1125,6 @@ export const useSpotterStore = create<SpotterState>()(
         ],
       };
     }),
-  acceptFriendRequest: (userId) =>
-    set((state) => {
-      const request = state.pendingFriendRequests.find((item) => item.id === userId);
-      if (!request) return state;
-      return {
-        pendingFriendRequests: state.pendingFriendRequests.filter((item) => item.id !== userId),
-        friends: [...state.friends, { ...request, id: createId("friend"), createdAt: new Date().toISOString() }],
-        badges: state.badges.includes("social_pup") ? state.badges : [...state.badges, "social_pup"],
-      };
-    }),
-  declineFriendRequest: (userId) =>
-    set((state) => ({
-      pendingFriendRequests: state.pendingFriendRequests.filter((item) => item.id !== userId),
-    })),
   createLeague: (input) => {
     const name = input.name.trim();
     if (!name) return;

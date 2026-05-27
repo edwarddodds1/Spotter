@@ -23,6 +23,7 @@ type Persisted = Partial<
     | "badges"
     | "friends"
     | "pendingFriendRequests"
+    | "outgoingFriendRequests"
     | "leagues"
     | "feedReactions"
     | "feedComments"
@@ -42,6 +43,7 @@ function pickPersistedSlice(state: SpotterState): Persisted {
     badges: state.badges,
     friends: state.friends,
     pendingFriendRequests: state.pendingFriendRequests,
+    outgoingFriendRequests: state.outgoingFriendRequests,
     leagues: state.leagues,
     feedReactions: state.feedReactions,
     feedComments: state.feedComments,
@@ -93,6 +95,10 @@ function applyPersistedSlice(persisted: Persisted) {
       pendingFriendRequests: safeArr(
         persisted.pendingFriendRequests,
         current.pendingFriendRequests,
+      ),
+      outgoingFriendRequests: safeArr(
+        persisted.outgoingFriendRequests,
+        current.outgoingFriendRequests,
       ),
       leagues: isRealPersistedUser ? leagues.filter((l) => !DEMO_LEAGUE_IDS.has(l.id)) : leagues,
       feedReactions: safeArr(persisted.feedReactions, current.feedReactions),

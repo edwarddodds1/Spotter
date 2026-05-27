@@ -131,6 +131,49 @@ export async function fetchUserScansFromSupabase(userId: string): Promise<{
 }
 
 /**
+ * Pull non-private scans owned by the given friend user ids.
+ *
+ * RLS `scans_select_owner_or_friends` already enforces that only accepted
+ * friends see each other's non-private scans, so this select is safe to
+ * call with whatever ids we have locally — the database does the gating.
+ */
+export async function fetchFriendsScansFromSupabase(
+  friendUserIds: string[],
+): Promise<{ scans: ScanRecord[]; dogProfiles: DogProfile[] } | null> {
+  if (!isSupabaseConfigured) return null;
+  if (friendUserIds.length === 0) return { scans: [], dogProfiles: [] };
+
+  const { data: scanRows, error: scanError } = await supabaseDb
+    .from("scans")
+    .select("*")
+    .in("user_id", friendUserIds)
+    .eq("is_private", false)
+    .order("scanned_at", { ascending: false })
+    .limit(200);
+
+  if (scanError) {
+    console.warn("[fetchFriendsScansFromSupabase]", scanError.message);
+    return null;
+  }
+
+  const scans = ((scanRows ?? []) as ScanRow[]).map(rowToScan);
+
+  const dogProfileIds = Array.from(
+    new Set(scans.map((s) => s.dogProfileId).filter((id): id is string => Boolean(id))),
+  );
+
+  let dogProfiles: DogProfile[] = [];
+  if (dogProfileIds.length > 0) {
+    const { data: dogRows } = await supabaseDb.from("dog_profiles").select("*").in("id", dogProfileIds);
+    if (dogRows) {
+      dogProfiles = (dogRows as DogProfileRow[]).map(rowToDogProfile);
+    }
+  }
+
+  return { scans, dogProfiles };
+}
+
+/**
  * Pushes local-only scans to Supabase (fixes legacy non-UUID ids and failed uploads).
  * Returns the full scans array with any id/photo_url updates applied.
  */

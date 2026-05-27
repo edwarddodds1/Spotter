@@ -14,7 +14,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { FeedPostSocialBar } from "@/features/social/FeedPostSocialBar";
 import { deleteSpot, replaceScanPhoto } from "@/features/spot/spotService";
 import { shareScanCard } from "@/features/social/shareScanCard";
-import { PILOT_SOCIAL_ENABLED } from "@/lib/pilotFeatures";
+import { PILOT_FRIENDS_ENABLED } from "@/lib/pilotFeatures";
 import { resolveScanPhotoDisplayUrl } from "@/lib/supabase/scanPhotoUrl";
 import { getStartOfCurrentWeek } from "@/lib/utils/dates";
 import { palette } from "@/constants/theme";
@@ -261,12 +261,12 @@ export function SocialScreen() {
           </Pressable>
           <Pressable
             onPress={() => {
-              if (!PILOT_SOCIAL_ENABLED) return;
+              if (!PILOT_FRIENDS_ENABLED) return;
               setFeedMode("friends");
             }}
             className="z-10 flex-1 items-center justify-center"
             accessibilityRole="button"
-            accessibilityState={{ selected: feedMode === "friends", disabled: !PILOT_SOCIAL_ENABLED }}
+            accessibilityState={{ selected: feedMode === "friends", disabled: !PILOT_FRIENDS_ENABLED }}
           >
             <Text
               className={`text-xs font-semibold ${feedMode === "friends" ? "text-black dark:text-white" : "text-zinc-500 dark:text-zinc-400"}`}
@@ -290,7 +290,7 @@ export function SocialScreen() {
                 ? scans.some((s) => s.breedId && !s.isPendingBreed && s.isPrivate)
                   ? "All your recent spots are private — turn off “Keep private” when saving, or change privacy in Profile."
                   : "No scans to show yet. Open Spot and log your first breed!"
-                : !PILOT_SOCIAL_ENABLED
+                : !PILOT_FRIENDS_ENABLED
                   ? "Friends feed is coming soon. Use Public to browse your own public spots for now."
                   : friends.length === 0
                     ? "Add friends from the Friends button above to see their public spots here."
