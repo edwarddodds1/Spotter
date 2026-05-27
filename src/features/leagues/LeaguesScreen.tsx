@@ -17,6 +17,7 @@ import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanim
 import { useNavigation } from "@react-navigation/native";
 
 import { ComingSoonCard } from "@/components/ComingSoonCard";
+import { openUserProfileNavigate } from "@/components/UsernameLink";
 import { UserAvatar } from "@/components/UserAvatar";
 import { PILOT_SOCIAL_ENABLED } from "@/lib/pilotFeatures";
 import {
@@ -83,6 +84,12 @@ function LeaguesScreenContent() {
   const [activeTab, setActiveTab] = useState<(typeof tabs)[number]>("Friends");
   const [leagueName, setLeagueName] = useState("");
   const [maxMembers, setMaxMembers] = useState<number>(10);
+  /**
+   * Mirror of `maxMembers` as raw text so the user can type intermediate
+   * values like "1" on the way to "15" without the input snapping to the
+   * minimum on every keystroke. We only clamp on blur / submit.
+   */
+  const [maxMembersText, setMaxMembersText] = useState<string>("10");
   const [duration, setDuration] = useState<LeagueDurationPreset>("ongoing");
   const [customDays, setCustomDays] = useState("14");
   const [copiedLeagueId, setCopiedLeagueId] = useState<string | null>(null);
@@ -128,9 +135,14 @@ function LeaguesScreenContent() {
       return;
     }
     const daysNum = Math.max(1, Math.min(365, parseInt(customDays, 10) || 14));
+    const parsedMax = parseInt(maxMembersText, 10);
+    const cap = Math.min(
+      500,
+      Math.max(2, Number.isNaN(parsedMax) ? maxMembers || 10 : parsedMax),
+    );
     createLeague({
       name: trimmed,
-      maxMembers,
+      maxMembers: cap,
       duration,
       customDays: duration === "custom" ? daysNum : undefined,
     });
@@ -139,6 +151,7 @@ function LeaguesScreenContent() {
     setLeagueName("");
     setDuration("ongoing");
     setMaxMembers(10);
+    setMaxMembersText("10");
     setCustomDays("14");
     if (fresh && url) {
       const endsLine = fresh.endsAt ? `\nEnds: ${formatLeagueEnds(fresh.endsAt)}` : "";
@@ -228,7 +241,10 @@ function LeaguesScreenContent() {
               {LEAGUE_CAPACITY_PRESETS.map((n) => (
                 <Pressable
                   key={n}
-                  onPress={() => setMaxMembers(n)}
+                  onPress={() => {
+                    setMaxMembers(n);
+                    setMaxMembersText(String(n));
+                  }}
                   className={`rounded-full px-3 py-2 ${maxMembers === n ? "bg-amber" : "bg-zinc-100 dark:bg-zinc-800"}`}
                 >
                   <Text className={`text-sm font-semibold ${maxMembers === n ? "text-white" : "text-zinc-700 dark:text-zinc-300"}`}>
@@ -238,17 +254,31 @@ function LeaguesScreenContent() {
               ))}
             </View>
             <TextInput
-              value={String(maxMembers)}
+              value={maxMembersText}
               onChangeText={(t) => {
-                const v = parseInt(t.replace(/\D/g, ""), 10);
-                if (!Number.isNaN(v)) setMaxMembers(Math.min(500, Math.max(2, v)));
-                else if (t === "") setMaxMembers(2);
+                /**
+                 * Strip to digits and cap at 3 chars (max league size is 500).
+                 * Update `maxMembers` whenever the digits parse, but **don't
+                 * clamp during typing** — clamping happens on blur / submit
+                 * so partial typed values stay visible.
+                 */
+                const digits = t.replace(/\D/g, "").slice(0, 3);
+                setMaxMembersText(digits);
+                if (digits === "") return;
+                const v = parseInt(digits, 10);
+                if (!Number.isNaN(v)) setMaxMembers(v);
+              }}
+              onBlur={() => {
+                const v = parseInt(maxMembersText, 10);
+                const clamped = Number.isNaN(v) ? 2 : Math.min(500, Math.max(2, v));
+                setMaxMembers(clamped);
+                setMaxMembersText(String(clamped));
               }}
               keyboardType="number-pad"
               returnKeyType="done"
               blurOnSubmit
               onSubmitEditing={Keyboard.dismiss}
-              placeholder="Custom max"
+              placeholder="Custom max (2–500)"
               placeholderTextColor="#71717a"
               className="mt-2 rounded-2xl border border-zinc-200 bg-zinc-100 px-4 py-3 text-black dark:border-border dark:bg-zinc-950 dark:text-white"
             />
@@ -401,19 +431,34 @@ function LeaguesScreenContent() {
       {activeTab !== "Friends" ? (
         <View className="mt-6">
           {leaderboard.map((entry) => (
-            <View key={entry.userId} className="mb-3 flex-row items-center justify-between rounded-3xl border border-zinc-200 bg-white px-4 py-4 dark:border-border dark:bg-card">
-              <View className="flex-row items-center gap-3">
+            <View
+              key={entry.userId}
+              className="mb-3 flex-row items-center justify-between rounded-3xl border border-zinc-200 bg-white px-4 py-4 dark:border-border dark:bg-card"
+            >
+              <Pressable
+                onPress={() => openUserProfileNavigate(navigation as any, currentUser.id, entry.userId)}
+                accessibilityRole="link"
+                accessibilityLabel={`Open ${entry.username}'s profile`}
+                className="min-w-0 flex-1 flex-row items-center gap-3"
+              >
                 <Text className="w-8 text-lg font-semibold text-amber">#{entry.rank}</Text>
                 <UserAvatar username={entry.username} avatarUrl={entry.avatarUrl} />
-                <View>
+                <View className="min-w-0 flex-1">
                   <Text className="font-semibold text-black dark:text-white">{entry.username}</Text>
                   <View className="mt-2 flex-row gap-1">
-                    {entry.badges.slice(0, 4).map((badge) => (
-                      <View key={badge} className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: badgeColors[badge] }} />
-                    ))}
+                    {entry.badges
+                      .filter((badge) => Boolean(badgeColors[badge]))
+                      .slice(0, 4)
+                      .map((badge) => (
+                        <View
+                          key={badge}
+                          className="h-2.5 w-2.5 rounded-full"
+                          style={{ backgroundColor: badgeColors[badge] }}
+                        />
+                      ))}
                   </View>
                 </View>
-              </View>
+              </Pressable>
               <Text className="font-semibold text-black dark:text-white">{entry.weeklyPoints} pts</Text>
             </View>
           ))}

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Image, Pressable, Text, View, type ImageProps } from "react-native";
 
 import { resolveScanPhotoDisplayUrl } from "@/lib/supabase/scanPhotoUrl";
+import { useAuthStore } from "@/store/useAuthStore";
 import { useSpotterStore } from "@/store/useSpotterStore";
 
 type ScanPhotoProps = Omit<ImageProps, "source"> & {
@@ -32,6 +33,13 @@ export function ScanPhoto({
     scanId ? (state.photoVersions[scanId] ?? 0) : 0,
   );
   const effectiveCacheKey = cacheKey ?? (scanId ? storeVersion : undefined);
+  /**
+   * Re-run signing whenever the auth session id flips (typically on cold start
+   * when the session is restored a tick after `ScanPhoto` first mounted) so
+   * we don't get stuck on a stale "Photo unavailable".
+   */
+  const sessionUserId = useAuthStore((state) => state.session?.user?.id ?? null);
+  const authReady = useAuthStore((state) => state.isReady);
 
   const [uri, setUri] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -41,19 +49,14 @@ export function ScanPhoto({
     let cancelled = false;
     setFailed(false);
     setUri(null);
-    const needsSignedUrl =
-      !photoUrl.startsWith("http://") &&
-      !photoUrl.startsWith("https://") &&
-      !photoUrl.startsWith("file://") &&
-      !photoUrl.startsWith("data:");
     void resolveScanPhotoDisplayUrl(photoUrl).then((resolved) => {
       if (cancelled) return;
       if (!resolved) {
-        setFailed(true);
-        return;
-      }
-      if (needsSignedUrl && resolved === photoUrl) {
-        setFailed(true);
+        /**
+         * If auth isn't ready yet, don't lock in the error state; wait for the
+         * auth-ready flip to trigger another attempt.
+         */
+        if (authReady) setFailed(true);
         return;
       }
       setUri(resolved);
@@ -61,7 +64,7 @@ export function ScanPhoto({
     return () => {
       cancelled = true;
     };
-  }, [photoUrl, effectiveCacheKey, attempt]);
+  }, [photoUrl, effectiveCacheKey, attempt, sessionUserId, authReady]);
 
   if (failed || !uri) {
     const showRetry = failed;

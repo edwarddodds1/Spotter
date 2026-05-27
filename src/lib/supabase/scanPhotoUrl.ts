@@ -45,6 +45,11 @@ function isLocalOrExternalPhotoUrl(photoUrl: string): boolean {
 /**
  * Returns a URI the Image component can load. Private `scans` bucket objects need a
  * short-lived signed URL; public CDN / local URIs pass through unchanged.
+ *
+ * On sign failure for a recognized storage path we return `""` rather than the
+ * original URL — the original may be a legacy public-bucket URL that no longer
+ * works on the now-private bucket, so falling back to it just paints a broken
+ * image. Callers treat `""` as "show retry".
  */
 export async function resolveScanPhotoDisplayUrl(photoUrl: string): Promise<string> {
   const trimmed = photoUrl?.trim() ?? "";
@@ -57,13 +62,34 @@ export async function resolveScanPhotoDisplayUrl(photoUrl: string): Promise<stri
   const cached = signedUrlCache.get(objectPath);
   if (cached && cached.expiresAt > Date.now()) return cached.url;
 
-  const { data, error } = await supabase.storage
-    .from(SCANS_BUCKET)
-    .createSignedUrl(objectPath, SIGNED_URL_TTL_SEC);
+  const signOnce = async () =>
+    supabase.storage.from(SCANS_BUCKET).createSignedUrl(objectPath, SIGNED_URL_TTL_SEC);
+
+  let { data, error } = await signOnce();
+
+  /**
+   * Web can occasionally hold a stale access token until refresh resolves.
+   * If signing fails once, try a best-effort refresh + one retry before we
+   * report failure to the UI.
+   */
+  if (error || !data?.signedUrl) {
+    try {
+      await supabase.auth.refreshSession();
+      const retried = await signOnce();
+      data = retried.data;
+      error = retried.error;
+    } catch {
+      // noop: keep original error path below
+    }
+  }
 
   if (error || !data?.signedUrl) {
-    console.warn("[resolveScanPhotoDisplayUrl]", error?.message ?? "missing signed URL");
-    return trimmed;
+    console.warn(
+      "[resolveScanPhotoDisplayUrl] sign failed",
+      objectPath,
+      error?.message ?? "missing signed URL",
+    );
+    return "";
   }
 
   signedUrlCache.set(objectPath, {

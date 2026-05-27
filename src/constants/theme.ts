@@ -1,3 +1,4 @@
+import { badgeMeta, type BadgeTier } from "@/constants/badges";
 import type { BadgeType, BreedRarity } from "@/types/app";
 
 export const palette = {
@@ -25,19 +26,24 @@ export const rarityHexBorderColors: Record<BreedRarity, string> = {
   legendary: "#9e1830",
 };
 
-export const badgeColors: Record<BadgeType, string> = {
-  first_spot: palette.amber,
-  ten_breeds: "#0f9d90",
-  quarter_dex: "#2979ff",
-  half_dex: "#5b21b6",
-  full_dex: "#c41e3a",
-  rare_finder: "#5b21b6",
-  legend_spotter: "#c41e3a",
-  featured_hunter: "#BA7517",
-  century: "#f97316",
-  social_pup: "#ec4899",
-  top_dog_owner: "#22c55e",
+/**
+ * Pokemon-style badge tier metals. Each tier gives a ring (outer stroke) and a
+ * shine (lighter highlight used for the inner halo / glow under the icon).
+ */
+export const badgeTierColors: Record<BadgeTier, { ring: string; shine: string; accent: string }> = {
+  bronze: { ring: "#a55a1f", shine: "#cd7f32", accent: "#b87333" },
+  silver: { ring: "#1e293b", shine: "#94a3b8", accent: "#334155" },
+  gold: { ring: "#c79a18", shine: "#f3c93e", accent: "#e0ad22" },
+  platinum: { ring: "#3b82a6", shine: "#7fd9ff", accent: "#4fb4dc" },
 };
+
+/**
+ * Per-badge accent. Derived from the tier so the medallion ring + every
+ * dot/avatar accent stays in sync with the tier ladder.
+ */
+export const badgeColors: Record<BadgeType, string> = Object.fromEntries(
+  Object.entries(badgeMeta).map(([id, meta]) => [id, badgeTierColors[meta.tier].accent]),
+) as Record<BadgeType, string>;
 
 export const variantThresholds: Record<BreedRarity, number> = {
   common: 5,

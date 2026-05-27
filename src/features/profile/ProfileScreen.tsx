@@ -1,5 +1,18 @@
-import { useMemo, useState } from "react";
-import { Alert, Image, Keyboard, Modal, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  FlatList,
+  Image,
+  Keyboard,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -10,9 +23,16 @@ import type { RootStackParamList } from "@/core/navigation/types";
 import { ScanPhoto } from "@/components/ScanPhoto";
 import { AvatarEditorModal } from "@/components/AvatarEditorModal";
 import { BadgeTile } from "@/components/BadgeTile";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { UserAvatar } from "@/components/UserAvatar";
 import { DOGDEX_TOTAL } from "@/constants/app";
-import { badgeDisplayOrder } from "@/constants/badges";
+import {
+  BADGE_CATEGORIES,
+  badgeCategoryBlurb,
+  badgeCategoryLabel,
+  badgeDisplayOrder,
+  badgesByCategory,
+} from "@/constants/badges";
 import { palette } from "@/constants/theme";
 import { deleteSpot, updateScanPrivacy } from "@/features/spot/spotService";
 import { ProfileMyDogsSection } from "@/features/profile/ProfileMyDogsSection";
@@ -21,8 +41,10 @@ import { supabase } from "@/lib/supabase/client";
 import { uploadAvatar } from "@/lib/supabase/storage";
 import { useAuthStore } from "@/store/useAuthStore";
 import { selectCollectedBreedIds, useSpotterStore } from "@/store/useSpotterStore";
-import type { BadgeType } from "@/types/app";
+import type { BadgeType, ScanRecord } from "@/types/app";
 import { RarityCompletionBars } from "@/components/RarityCompletionBars";
+
+const SPOTS_PER_PAGE = 5;
 
 export function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -44,29 +66,129 @@ export function ProfileScreen() {
   const [avatarEditorVisible, setAvatarEditorVisible] = useState(false);
   const [avatarPick, setAvatarPick] = useState<{ uri: string; width: number; height: number } | null>(null);
   const [avatarSourceSheetVisible, setAvatarSourceSheetVisible] = useState(false);
+  /** Scan id queued for the in-app delete confirmation modal. */
+  const [pendingDeleteSpotId, setPendingDeleteSpotId] = useState<string | null>(null);
 
   const collectedBreedIds = selectCollectedBreedIds(scans, currentUser.id);
   const collectedCount = collectedBreedIds.size;
   const badgeUnlockedSet = useMemo(() => new Set<BadgeType>(earnedBadges), [earnedBadges]);
-
-  const mostRecentSpot = useMemo(() => {
-    const mine = scans
-      .filter((s) => s.userId === currentUser.id)
-      .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime());
-    const scan = mine[0];
-    if (!scan) return null;
-    const breed = scan.breedId ? breeds.find((b) => b.id === scan.breedId) ?? null : null;
-    return { scan, breed };
-  }, [breeds, scans, currentUser.id]);
+  const grouped = useMemo(() => badgesByCategory(), []);
 
   const mySpotsChronological = useMemo(
     () =>
       [...scans]
         .filter((s) => s.userId === currentUser.id)
-        .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime())
-        .slice(0, 25),
+        .sort((a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime()),
     [scans, currentUser.id],
   );
+
+  const spotPages = useMemo(() => {
+    const pages: ScanRecord[][] = [];
+    for (let i = 0; i < mySpotsChronological.length; i += SPOTS_PER_PAGE) {
+      pages.push(mySpotsChronological.slice(i, i + SPOTS_PER_PAGE));
+    }
+    return pages;
+  }, [mySpotsChronological]);
+
+  const [spotsPage, setSpotsPage] = useState(0);
+  const [spotsPagerWidth, setSpotsPagerWidth] = useState(0);
+  const spotsPagerRef = useRef<FlatList<ScanRecord[]>>(null);
+
+  /**
+   * Snap the current page back into the valid range if the underlying list
+   * shrinks (e.g. user deletes the only spot on the last page).
+   */
+  useEffect(() => {
+    if (spotPages.length === 0) {
+      if (spotsPage !== 0) setSpotsPage(0);
+      return;
+    }
+    if (spotsPage > spotPages.length - 1) {
+      const last = spotPages.length - 1;
+      setSpotsPage(last);
+      if (spotsPagerWidth > 0) {
+        spotsPagerRef.current?.scrollToOffset({
+          offset: last * spotsPagerWidth,
+          animated: false,
+        });
+      }
+    }
+  }, [spotPages.length, spotsPage, spotsPagerWidth]);
+
+  const goToSpotsPage = (next: number) => {
+    if (next < 0 || next >= spotPages.length) return;
+    setSpotsPage(next);
+    if (spotsPagerWidth > 0) {
+      spotsPagerRef.current?.scrollToOffset({
+        offset: next * spotsPagerWidth,
+        animated: true,
+      });
+    }
+  };
+
+  const renderSpotRow = (scan: ScanRecord) => {
+    const breedLabel = scan.breedId
+      ? breeds.find((b) => b.id === scan.breedId)?.name ?? "Unknown breed"
+      : scan.isPendingBreed
+        ? "Pending breed"
+        : "—";
+    return (
+      <View
+        key={scan.id}
+        className="flex-row items-center gap-3 border-b border-zinc-100 px-3 py-3 last:border-b-0 dark:border-border"
+      >
+        <ScanPhoto
+          scanId={scan.id}
+          photoUrl={scan.photoUrl}
+          className="h-12 w-12 rounded-xl bg-zinc-100 dark:bg-zinc-800"
+        />
+        <View className="min-w-0 flex-1">
+          <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
+            {breedLabel}
+          </Text>
+          <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+            {new Date(scan.scannedAt).toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+            {scan.isPrivate ? " · Private" : ""}
+          </Text>
+          {scan.locationLabel ? (
+            <Text className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400" numberOfLines={2}>
+              {scan.locationLabel}
+            </Text>
+          ) : null}
+          {scan.spotComment ? (
+            <Text className="mt-1 text-xs leading-4 text-zinc-600 dark:text-zinc-400" numberOfLines={3}>
+              {scan.spotComment}
+            </Text>
+          ) : null}
+        </View>
+        <View className="items-end gap-1">
+          <View className="flex-row items-center gap-1">
+            <MaterialCommunityIcons name="lock-outline" size={14} color={palette.muted} />
+            <Switch
+              value={scan.isPrivate}
+              onValueChange={(v) => {
+                void updateScanPrivacy(scan.id, v);
+              }}
+            />
+          </View>
+          <Pressable
+            onPress={() => setPendingDeleteSpotId(scan.id)}
+            accessibilityRole="button"
+            accessibilityLabel="Delete spot"
+            className="flex-row items-center gap-1 rounded-full px-2 py-1"
+          >
+            <MaterialCommunityIcons name="trash-can-outline" size={16} color="#b91c1c" />
+            <Text className="text-xs font-semibold text-red-700 dark:text-red-400">Delete</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
 
   const myMapScans = useMemo(
     () =>
@@ -339,14 +461,7 @@ export function ProfileScreen() {
           </View>
 
           <View className="px-4 pb-2">
-            <View className="mb-2 flex-row items-end justify-between">
-              <View className="flex-1">
-                <Text className="text-lg font-bold text-black dark:text-white">Rarity completion</Text>
-                <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                  {collectedCount} of {DOGDEX_TOTAL} breeds collected — progress by rarity.
-                </Text>
-              </View>
-            </View>
+            <Text className="mb-2 text-lg font-bold text-black dark:text-white">Rarity completion</Text>
             <RarityCompletionBars
               variant="compact"
               breeds={breeds}
@@ -354,35 +469,6 @@ export function ProfileScreen() {
             />
           </View>
 
-          {mostRecentSpot ? (
-            <View className="mx-4 mb-4 rounded-2xl bg-zinc-50 px-4 py-3 dark:bg-zinc-950/80">
-              <Text className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
-                Most recent scan
-              </Text>
-              <Text className="mt-1 font-semibold text-black dark:text-white">
-                {mostRecentSpot.breed?.name ??
-                  (mostRecentSpot.scan.isPendingBreed ? "Pending breed" : "Unknown breed")}
-              </Text>
-              <Text className="text-xs text-zinc-600 dark:text-zinc-400">
-                {new Date(mostRecentSpot.scan.scannedAt).toLocaleString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-                {mostRecentSpot.breed
-                  ? ` · ${mostRecentSpot.breed.rarity.charAt(0).toUpperCase() + mostRecentSpot.breed.rarity.slice(1)} · ${mostRecentSpot.breed.points} pts`
-                  : mostRecentSpot.scan.pointsAwarded > 0
-                    ? ` · +${mostRecentSpot.scan.pointsAwarded} pts`
-                    : ""}
-              </Text>
-              {mostRecentSpot.scan.locationLabel ? (
-                <Text className="mt-1 text-xs text-zinc-600 dark:text-zinc-400" numberOfLines={2}>
-                  {mostRecentSpot.scan.locationLabel}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
         </View>
       </View>
 
@@ -392,86 +478,93 @@ export function ProfileScreen() {
         <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Delete a scan or mark it private (private spots stay off Social).
         </Text>
-        {mySpotsChronological.length === 0 ? (
+        {spotPages.length === 0 ? (
           <View className="mt-3 rounded-3xl border border-dashed border-zinc-300 bg-white px-4 py-8 dark:border-border dark:bg-card">
             <Text className="text-center text-sm text-zinc-600 dark:text-zinc-400">No scans logged yet.</Text>
           </View>
         ) : (
-          <View className="mt-3 overflow-hidden rounded-3xl border border-zinc-200/80 bg-white dark:border-border dark:bg-card">
-            {mySpotsChronological.map((scan) => {
-              const breedLabel = scan.breedId
-                ? breeds.find((b) => b.id === scan.breedId)?.name ?? "Unknown breed"
-                : scan.isPendingBreed
-                  ? "Pending breed"
-                  : "—";
-              return (
-                <View
-                  key={scan.id}
-                  className="flex-row items-center gap-3 border-b border-zinc-100 px-3 py-3 last:border-b-0 dark:border-border"
-                >
-                  <ScanPhoto
-                    scanId={scan.id}
-                    photoUrl={scan.photoUrl}
-                    className="h-12 w-12 rounded-xl bg-zinc-100 dark:bg-zinc-800"
-                  />
-                  <View className="min-w-0 flex-1">
-                    <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
-                      {breedLabel}
-                    </Text>
-                    <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {new Date(scan.scannedAt).toLocaleString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                      {scan.isPrivate ? " · Private" : ""}
-                    </Text>
-                    {scan.locationLabel ? (
-                      <Text className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400" numberOfLines={2}>
-                        {scan.locationLabel}
-                      </Text>
-                    ) : null}
-                    {scan.spotComment ? (
-                      <Text className="mt-1 text-xs leading-4 text-zinc-600 dark:text-zinc-400" numberOfLines={3}>
-                        {scan.spotComment}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View className="items-end gap-1">
-                    <View className="flex-row items-center gap-1">
-                      <MaterialCommunityIcons name="lock-outline" size={14} color={palette.muted} />
-                      <Switch
-                        value={scan.isPrivate}
-                        onValueChange={(v) => {
-                          void updateScanPrivacy(scan.id, v);
-                        }}
-                      />
+          <View className="mt-3">
+            <View
+              className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white dark:border-border dark:bg-card"
+              onLayout={(e) => {
+                const w = e.nativeEvent.layout.width;
+                if (w > 0 && w !== spotsPagerWidth) setSpotsPagerWidth(w);
+              }}
+            >
+              {spotsPagerWidth > 0 ? (
+                <FlatList
+                  ref={spotsPagerRef}
+                  data={spotPages}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  decelerationRate="fast"
+                  /**
+                   * `snapToInterval` + `pagingEnabled` together guarantee a single
+                   * swipe never moves more than one page on either platform — a
+                   * fast flick still settles on the next page, never two.
+                   */
+                  snapToInterval={spotsPagerWidth}
+                  snapToAlignment="start"
+                  disableIntervalMomentum
+                  keyExtractor={(_, idx) => `spot-page-${idx}`}
+                  /**
+                   * Update the counter live as the user swipes (not just on
+                   * scroll-end). RN-Web's `pagingEnabled` doesn't always fire
+                   * `onMomentumScrollEnd`, so we drive page index from the
+                   * scroll offset directly and keep `onMomentumScrollEnd` as a
+                   * native-platform safety net.
+                   */
+                  scrollEventThrottle={16}
+                  onScroll={(e) => {
+                    const idx = Math.round(
+                      e.nativeEvent.contentOffset.x / Math.max(1, spotsPagerWidth),
+                    );
+                    if (idx !== spotsPage && idx >= 0 && idx < spotPages.length) {
+                      setSpotsPage(idx);
+                    }
+                  }}
+                  onMomentumScrollEnd={(e) => {
+                    const idx = Math.round(
+                      e.nativeEvent.contentOffset.x / Math.max(1, spotsPagerWidth),
+                    );
+                    if (idx !== spotsPage) setSpotsPage(idx);
+                  }}
+                  renderItem={({ item }) => (
+                    <View style={{ width: spotsPagerWidth }}>
+                      {item.map((scan) => renderSpotRow(scan))}
                     </View>
-                    <Pressable
-                      onPress={() => {
-                        Alert.alert(
-                          "Delete this spot?",
-                          "Removes the scan from your journal and feed.",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Delete",
-                              style: "destructive",
-                              onPress: () => void deleteSpot(scan.id),
-                            },
-                          ],
-                        );
-                      }}
-                      className="flex-row items-center gap-1 rounded-full px-2 py-1"
-                    >
-                      <MaterialCommunityIcons name="trash-can-outline" size={16} color="#b91c1c" />
-                      <Text className="text-xs font-semibold text-red-700 dark:text-red-400">Delete</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })}
+                  )}
+                />
+              ) : (
+                <View>{spotPages[0]?.map((scan) => renderSpotRow(scan))}</View>
+              )}
+            </View>
+            {spotPages.length > 1 ? (
+              <View className="mt-3 flex-row items-center justify-center gap-4">
+                <Pressable
+                  onPress={() => goToSpotsPage(spotsPage - 1)}
+                  disabled={spotsPage === 0}
+                  accessibilityRole="button"
+                  accessibilityLabel="Previous spots page"
+                  className={`rounded-full p-2 ${spotsPage === 0 ? "opacity-30" : "bg-zinc-100 dark:bg-zinc-900"}`}
+                >
+                  <MaterialCommunityIcons name="chevron-left" size={22} color={palette.amber} />
+                </Pressable>
+                <Text className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+                  {spotsPage + 1} / {spotPages.length}
+                </Text>
+                <Pressable
+                  onPress={() => goToSpotsPage(spotsPage + 1)}
+                  disabled={spotsPage >= spotPages.length - 1}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next spots page"
+                  className={`rounded-full p-2 ${spotsPage >= spotPages.length - 1 ? "opacity-30" : "bg-zinc-100 dark:bg-zinc-900"}`}
+                >
+                  <MaterialCommunityIcons name="chevron-right" size={22} color={palette.amber} />
+                </Pressable>
+              </View>
+            ) : null}
           </View>
         )}
       </View>
@@ -495,12 +588,31 @@ export function ProfileScreen() {
           </View>
         </View>
 
-        <View className="flex-row flex-wrap justify-between gap-y-3">
-          {badgeDisplayOrder.map((badge) => (
-            <View key={badge} className="w-[48%]">
-              <BadgeTile badge={badge} unlocked={badgeUnlockedSet.has(badge)} />
-            </View>
-          ))}
+        <View>
+          {BADGE_CATEGORIES.map((category) => {
+            const ids = grouped[category];
+            if (ids.length === 0) return null;
+            return (
+              <View
+                key={category}
+                className="mb-3 rounded-3xl border border-zinc-200 bg-white px-3 py-3 dark:border-border dark:bg-card"
+              >
+                <Text className="text-sm font-bold uppercase tracking-wider text-black dark:text-white">
+                  {badgeCategoryLabel[category]}
+                </Text>
+                <Text className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                  {badgeCategoryBlurb[category]}
+                </Text>
+                <View className="mt-3 flex-row justify-between">
+                  {ids.map((badge) => (
+                    <View key={badge} style={{ width: "23%" }}>
+                      <BadgeTile badge={badge} unlocked={badgeUnlockedSet.has(badge)} />
+                    </View>
+                  ))}
+                </View>
+              </View>
+            );
+          })}
         </View>
       </View>
 
@@ -557,6 +669,19 @@ export function ProfileScreen() {
         setAvatarPick(null);
       }}
       onSave={commitAvatarUpload}
+    />
+    <ConfirmDialog
+      visible={pendingDeleteSpotId !== null}
+      title="Delete this spot?"
+      message="This removes the scan from your journal, Dogdex, and the Social feed everywhere. This cannot be undone."
+      confirmLabel="Delete"
+      destructive
+      onCancel={() => setPendingDeleteSpotId(null)}
+      onConfirm={() => {
+        const id = pendingDeleteSpotId;
+        setPendingDeleteSpotId(null);
+        if (id) void deleteSpot(id);
+      }}
     />
     </>
   );

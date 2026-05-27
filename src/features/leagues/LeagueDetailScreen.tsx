@@ -5,9 +5,12 @@ import { useNavigation } from "@react-navigation/native";
 
 import { UserAvatar } from "@/components/UserAvatar";
 import { openUserProfileNavigate } from "@/components/UsernameLink";
-import { badgeColors } from "@/constants/theme";
+import { rarityColors, rarityHexBorderColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/core/navigation/types";
 import { useSpotterStore } from "@/store/useSpotterStore";
+import type { BreedRarity } from "@/types/app";
+
+const RARITY_ORDER: BreedRarity[] = ["common", "uncommon", "rare", "legendary"];
 
 type Props = NativeStackScreenProps<RootStackParamList, "LeagueDetail">;
 
@@ -18,10 +21,53 @@ export function LeagueDetailScreen({ route }: Props) {
   const friends = useSpotterStore((state) => state.friends);
   const addLeagueFriendRequest = useSpotterStore((state) => state.addLeagueFriendRequest);
   const leagues = useSpotterStore((state) => state.leagues);
-  const badges = useSpotterStore((state) => state.badges);
   const weeklyPoints = useSpotterStore((state) => state.weeklyPoints);
+  const scans = useSpotterStore((state) => state.scans);
+  const breeds = useSpotterStore((state) => state.breeds);
+
+  const breedRarityById = useMemo(() => {
+    const map = new Map<string, BreedRarity>();
+    for (const breed of breeds) map.set(breed.id, breed.rarity);
+    return map;
+  }, [breeds]);
 
   const league = useMemo(() => leagues.find((item) => item.id === leagueId) ?? null, [leagues, leagueId]);
+
+  /**
+   * Per-user, per-rarity scan counts **scoped to this league's window** —
+   * from `league.createdAt` up to `league.endsAt` (clamped to now if the
+   * season is still ongoing). Members with no in-window scans simply never
+   * appear in the map, so the leaderboard fallback renders `0` for each
+   * rarity circle.
+   */
+  const scansByRarityByUser = useMemo(() => {
+    const acc = new Map<string, Record<BreedRarity, number>>();
+    if (!league) return acc;
+    const startMs = Date.parse(league.createdAt);
+    if (!Number.isFinite(startMs)) return acc;
+    const endMs = league.endsAt
+      ? Math.min(Date.now(), Date.parse(league.endsAt))
+      : Date.now();
+    if (!Number.isFinite(endMs)) return acc;
+
+    for (const scan of scans) {
+      if (scan.isPendingBreed) continue;
+      if (!scan.breedId) continue;
+      const rarity = breedRarityById.get(scan.breedId);
+      if (!rarity) continue;
+      const scanMs = Date.parse(scan.scannedAt);
+      if (!Number.isFinite(scanMs)) continue;
+      if (scanMs < startMs || scanMs > endMs) continue;
+
+      let counts = acc.get(scan.userId);
+      if (!counts) {
+        counts = { common: 0, uncommon: 0, rare: 0, legendary: 0 };
+        acc.set(scan.userId, counts);
+      }
+      counts[rarity] += 1;
+    }
+    return acc;
+  }, [breedRarityById, league, scans]);
 
   const members = useMemo<Array<{ id: string; username: string; avatarUrl: string | null; city: string; country: string }>>(() => {
     if (!league) return [];
@@ -38,12 +84,18 @@ export function LeagueDetailScreen({ route }: Props) {
         userId: member.id,
         username: member.username,
         avatarUrl: member.avatarUrl,
-        badges: member.id === currentUser.id ? badges : [],
         weeklyPoints: member.id === currentUser.id ? weeklyPoints : 0,
+        rarityCounts:
+          scansByRarityByUser.get(member.id) ?? {
+            common: 0,
+            uncommon: 0,
+            rare: 0,
+            legendary: 0,
+          },
       }))
       .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
       .map((entry, index) => ({ ...entry, rank: index + 1 }));
-  }, [badges, currentUser.id, members, weeklyPoints]);
+  }, [currentUser.id, members, scansByRarityByUser, weeklyPoints]);
 
   if (!league) {
     return (
@@ -68,12 +120,37 @@ export function LeagueDetailScreen({ route }: Props) {
             className="min-w-0 flex-1 flex-row items-center gap-3"
           >
             <Text className="w-8 text-lg font-semibold text-amber">#{entry.rank}</Text>
-            <UserAvatar username={entry.username} avatarUrl={entry.avatarUrl} />
-            <View>
-              <Text className="font-semibold text-black dark:text-white">{entry.username}</Text>
-              <View className="mt-2 flex-row gap-1">
-                {entry.badges.slice(0, 4).map((badge) => (
-                  <View key={`${entry.userId}-${badge}`} className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: badgeColors[badge] }} />
+            <View
+              className="rounded-full"
+              style={{ borderWidth: 2, borderColor: "#000" }}
+            >
+              <UserAvatar username={entry.username} avatarUrl={entry.avatarUrl} />
+            </View>
+            <View className="min-w-0 flex-1">
+              <Text
+                className="text-2xl font-semibold text-black dark:text-white"
+                numberOfLines={1}
+              >
+                {entry.username}
+              </Text>
+              <View className="mt-1.5 flex-row gap-1.5">
+                {RARITY_ORDER.map((rarity) => (
+                  <View
+                    key={`${entry.userId}-${rarity}`}
+                    className="items-center justify-center rounded-full"
+                    style={{
+                      width: 26,
+                      height: 26,
+                      backgroundColor: rarityColors[rarity],
+                      borderWidth: 1.5,
+                      borderColor: rarityHexBorderColors[rarity],
+                    }}
+                    accessibilityLabel={`${entry.rarityCounts[rarity]} ${rarity} scans`}
+                  >
+                    <Text className="text-[11px] font-bold text-white">
+                      {entry.rarityCounts[rarity]}
+                    </Text>
+                  </View>
                 ))}
               </View>
             </View>

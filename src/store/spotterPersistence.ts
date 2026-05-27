@@ -1,7 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
 
-import type { League, ScanRecord, UserProfile } from "@/types/app";
+import { isKnownBadge } from "@/constants/badges";
+import type { BadgeType, League, ScanRecord, UserProfile } from "@/types/app";
 import type { SpotterState } from "@/store/useSpotterStore";
 import { _registerSpotterStoreHydration, useSpotterStore } from "@/store/useSpotterStore";
 
@@ -90,7 +91,12 @@ function applyPersistedSlice(persisted: Persisted) {
       dogProfiles: safeArr(persisted.dogProfiles, current.dogProfiles),
       journalDogs: safeArr(persisted.journalDogs, current.journalDogs),
       recentBreedIds: safeArr(persisted.recentBreedIds, current.recentBreedIds),
-      badges: safeArr(persisted.badges, current.badges),
+      /**
+       * Drop any badge IDs from a retired taxonomy so legacy local storage
+       * (e.g. `first_spot`, `top_dog_owner`) doesn't poison the new
+       * medallion grid or feed cards.
+       */
+      badges: safeArr<BadgeType>(persisted.badges, current.badges).filter((b) => isKnownBadge(b)),
       friends: isRealPersistedUser ? friends.filter((f) => !DEMO_FRIEND_IDS.has(f.id)) : friends,
       pendingFriendRequests: safeArr(
         persisted.pendingFriendRequests,

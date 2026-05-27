@@ -7,7 +7,7 @@ import {
   MAX_SCAN_LOCATION_LABEL_LENGTH,
   RECENT_BREED_LIMIT,
 } from "@/constants/app";
-import { badgeCopy, badgeDisplayOrder } from "@/constants/badges";
+import { badgeCopy, badgeDisplayOrder, isKnownBadge } from "@/constants/badges";
 import { COAT_OTHER_ID } from "@/constants/breedCoatColours";
 import { breedsCatalog, RARITY_POINTS } from "@/constants/breeds";
 import { variantThresholds } from "@/constants/theme";
@@ -355,34 +355,109 @@ function pickFeaturedBreedIdForTodayNoRepeat(breeds: Breed[], date = new Date())
   return fallbackPool[(idx + 1) % fallbackPool.length]?.id ?? todayId;
 }
 
-function recomputeScanBadges(scans: ScanRecord[], breeds: Breed[], userId: string): BadgeType[] {
-  const userScans = scans.filter((s) => s.userId === userId);
-  const withBreed = userScans.filter((s) => s.breedId && !s.isPendingBreed);
-  const distinctBreeds = new Set(withBreed.map((s) => s.breedId as string));
-  const distinctCount = distinctBreeds.size;
-  const breedById = new Map(breeds.map((b) => [b.id, b]));
-
-  const next = new Set<BadgeType>();
-  if (userScans.length >= 1) next.add("first_spot");
-  if (distinctCount >= 10) next.add("ten_breeds");
-  if (distinctCount >= Math.ceil(DOGDEX_TOTAL * 0.25)) next.add("quarter_dex");
-  if (distinctCount >= Math.ceil(DOGDEX_TOTAL * 0.5)) next.add("half_dex");
-  if (distinctCount >= DOGDEX_TOTAL) next.add("full_dex");
-  if (userScans.length >= 100) next.add("century");
-  if (userScans.some((s) => s.matchedFeaturedBreed)) next.add("featured_hunter");
-  for (const s of withBreed) {
-    const br = s.breedId ? breedById.get(s.breedId) : undefined;
-    if (br?.rarity === "rare") next.add("rare_finder");
-    if (br?.rarity === "legendary") next.add("legend_spotter");
+/**
+ * Longest run of consecutive *local* calendar days that contain at least one
+ * non-pending scan. Used to drive the streak badge tier. Permanent — we don't
+ * decay the badge once a streak is reached.
+ */
+function computeLongestStreak(scanIsoDates: string[]): number {
+  if (scanIsoDates.length === 0) return 0;
+  const days = new Set<number>();
+  for (const iso of scanIsoDates) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) continue;
+    days.add(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
   }
-  return Array.from(next);
+  if (days.size === 0) return 0;
+  const sorted = Array.from(days).sort((a, b) => a - b);
+  const oneDay = 24 * 60 * 60 * 1000;
+  let best = 1;
+  let curr = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    const diff = Math.round((sorted[i] - sorted[i - 1]) / oneDay);
+    if (diff === 1) {
+      curr += 1;
+      if (curr > best) best = curr;
+    } else if (diff > 1) {
+      curr = 1;
+    }
+  }
+  return best;
 }
 
-function mergeSocialBadges(scanBadges: BadgeType[], friendsCount: number, hadTopDogOwner: boolean): BadgeType[] {
-  const s = new Set(scanBadges);
-  if (friendsCount >= 1) s.add("social_pup");
-  if (hadTopDogOwner) s.add("top_dog_owner");
-  return Array.from(s);
+/**
+ * Single source of truth for which badges a user has earned. Re-runs on
+ * every scan / friend / reaction change. The result is unioned with the
+ * caller's previous list so badges are "sticky" — once earned, always
+ * shown (matters for weekly-reset conditions like Rival Spotter).
+ */
+function recomputeBadges(input: {
+  previous: BadgeType[];
+  scans: ScanRecord[];
+  breeds: Breed[];
+  userId: string;
+  friendsCount: number;
+  leagues: League[];
+  feedReactions: FeedReaction[];
+}): BadgeType[] {
+  const { previous, scans, userId, friendsCount, leagues, feedReactions } = input;
+
+  const userScans = scans.filter((s) => s.userId === userId && !s.isPendingBreed);
+  const totalScans = userScans.length;
+  const distinctBreeds = new Set(
+    userScans
+      .map((s) => s.breedId)
+      .filter((id): id is string => Boolean(id)),
+  );
+  const distinctCount = distinctBreeds.size;
+  const longestStreak = computeLongestStreak(userScans.map((s) => s.scannedAt));
+
+  const myScanIds = new Set(
+    scans.filter((s) => s.userId === userId).map((s) => s.id),
+  );
+  const likesReceived = feedReactions.filter((r) => myScanIds.has(r.scanId)).length;
+
+  const earned = new Set<BadgeType>();
+  // Discovery
+  if (totalScans >= 5) earned.add("puppy_scout");
+  if (totalScans >= 25) earned.add("park_rover");
+  if (totalScans >= 100) earned.add("breed_hunter");
+  if (totalScans >= 300) earned.add("master_spotter");
+  // Collection
+  if (distinctCount >= 5) earned.add("common_collector");
+  if (distinctCount >= 10) earned.add("kennel_expert");
+  if (distinctCount >= 25) earned.add("dog_encyclopedia");
+  if (distinctCount >= DOGDEX_TOTAL) earned.add("legendary_collector");
+  // Streaks
+  if (longestStreak >= 3) earned.add("daily_walker");
+  if (longestStreak >= 7) earned.add("consistent_collector");
+  if (longestStreak >= 30) earned.add("dog_obsessed");
+  if (longestStreak >= 100) earned.add("off_the_leash");
+  // Social
+  if (friendsCount >= 3) earned.add("pack_member");
+  if (friendsCount >= 10) earned.add("dog_squad");
+  /**
+   * "Spotter Champ" — win a league. Pilot leagues keep the signed-in user
+   * on top of the mock leaderboard, so a league that has reached its
+   * `endsAt` counts as a win. Once earned the badge is sticky via the
+   * previous-union below, so it survives a league disappearing later.
+   */
+  const now = Date.now();
+  if (
+    leagues.some((league) => {
+      if (!league.endsAt) return false;
+      const ended = Date.parse(league.endsAt);
+      return Number.isFinite(ended) && ended <= now;
+    })
+  ) {
+    earned.add("rival_spotter");
+  }
+  if (likesReceived >= 25) earned.add("community_favourite");
+
+  const merged = new Set<BadgeType>();
+  for (const id of previous) if (isKnownBadge(id)) merged.add(id);
+  for (const id of earned) merged.add(id);
+  return Array.from(merged);
 }
 
 const starterUser: UserProfile = {
@@ -714,9 +789,15 @@ export const useSpotterStore = create<SpotterState>()(
       ? allScans.filter((item) => item.userId === state.currentUser.id && item.breedId === breedId).length
       : 0;
     const variantUnlocked = Boolean(breed && breedScanCount >= variantThresholds[breed.rarity]);
-    const hadTopDogOwner = state.badges.includes("top_dog_owner");
-    const scanBadges = recomputeScanBadges(allScans, state.breeds, state.currentUser.id);
-    const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+    const badges = recomputeBadges({
+      previous: state.badges,
+      scans: allScans,
+      breeds: state.breeds,
+      userId: state.currentUser.id,
+      friendsCount: state.friends.length,
+      leagues: state.leagues,
+      feedReactions: state.feedReactions,
+    });
 
     set((current) => ({
       scans: [scan, ...current.scans],
@@ -751,13 +832,20 @@ export const useSpotterStore = create<SpotterState>()(
         d.id === scan.dogProfileId ? { ...d, totalScans: Math.max(0, d.totalScans - 1) } : d,
       );
     }
-    const scanBadges = recomputeScanBadges(nextScans, state.breeds, state.currentUser.id);
-    const hadTopDogOwner = state.badges.includes("top_dog_owner");
-    const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+    const nextWeekly = Math.max(0, state.weeklyPoints - points);
+    const badges = recomputeBadges({
+      previous: state.badges,
+      scans: nextScans,
+      breeds: state.breeds,
+      userId: state.currentUser.id,
+      friendsCount: state.friends.length,
+      leagues: state.leagues,
+      feedReactions: state.feedReactions,
+    });
 
     set({
       scans: nextScans,
-      weeklyPoints: Math.max(0, state.weeklyPoints - points),
+      weeklyPoints: nextWeekly,
       currentUser: {
         ...state.currentUser,
         totalScans: Math.max(0, state.currentUser.totalScans - 1),
@@ -820,14 +908,21 @@ export const useSpotterStore = create<SpotterState>()(
         coatColourNote: nextCoatNote,
       };
       const nextScans = state.scans.map((s) => (s.id === scanId ? updatedScan : s));
-      const hadTopDogOwner = state.badges.includes("top_dog_owner");
-      const scanBadges = recomputeScanBadges(nextScans, state.breeds, state.currentUser.id);
-      const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+      const nextWeekly = state.weeklyPoints + delta;
+      const badges = recomputeBadges({
+        previous: state.badges,
+        scans: nextScans,
+        breeds: state.breeds,
+        userId: state.currentUser.id,
+        friendsCount: state.friends.length,
+        leagues: state.leagues,
+        feedReactions: state.feedReactions,
+      });
       result = { isFirstBreed, updatedScan, matchedFeatured };
       return {
         scans: nextScans,
         recentBreedIds: [breedId, ...state.recentBreedIds.filter((id) => id !== breedId)].slice(0, RECENT_BREED_LIMIT),
-        weeklyPoints: state.weeklyPoints + delta,
+        weeklyPoints: nextWeekly,
         badges,
       };
     });
@@ -895,12 +990,19 @@ export const useSpotterStore = create<SpotterState>()(
         coatColourNote: null,
       };
       const nextScans = state.scans.map((s) => (s.id === scanId ? updated! : s));
-      const hadTopDogOwner = state.badges.includes("top_dog_owner");
-      const scanBadges = recomputeScanBadges(nextScans, state.breeds, state.currentUser.id);
-      const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+      const nextWeekly = state.weeklyPoints + delta;
+      const badges = recomputeBadges({
+        previous: state.badges,
+        scans: nextScans,
+        breeds: state.breeds,
+        userId: state.currentUser.id,
+        friendsCount: state.friends.length,
+        leagues: state.leagues,
+        feedReactions: state.feedReactions,
+      });
       return {
         scans: nextScans,
-        weeklyPoints: state.weeklyPoints + delta,
+        weeklyPoints: nextWeekly,
         badges,
       };
     });
@@ -924,9 +1026,15 @@ export const useSpotterStore = create<SpotterState>()(
         .concat(newDogs);
 
       const userScanCount = nextScans.filter((s) => s.userId === userId).length;
-      const scanBadges = recomputeScanBadges(nextScans, state.breeds, userId);
-      const hadTopDogOwner = state.badges.includes("top_dog_owner");
-      const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+      const badges = recomputeBadges({
+        previous: state.badges,
+        scans: nextScans,
+        breeds: state.breeds,
+        userId,
+        friendsCount: state.friends.length,
+        leagues: state.leagues,
+        feedReactions: state.feedReactions,
+      });
 
       const nextCurrentUser =
         state.currentUser.id === userId
@@ -944,9 +1052,15 @@ export const useSpotterStore = create<SpotterState>()(
     set((state) => {
       const userId = state.currentUser.id;
       const userScanCount = scans.filter((s) => s.userId === userId).length;
-      const scanBadges = recomputeScanBadges(scans, state.breeds, userId);
-      const hadTopDogOwner = state.badges.includes("top_dog_owner");
-      const badges = mergeSocialBadges(scanBadges, state.friends.length, hadTopDogOwner);
+      const badges = recomputeBadges({
+        previous: state.badges,
+        scans,
+        breeds: state.breeds,
+        userId,
+        friendsCount: state.friends.length,
+        leagues: state.leagues,
+        feedReactions: state.feedReactions,
+      });
       return {
         scans,
         badges,
@@ -1021,7 +1135,7 @@ export const useSpotterStore = create<SpotterState>()(
       scans: starterScans,
       dogProfiles: starterDogProfiles,
       recentBreedIds: ["cavoodle", "border-collie", "golden-retriever"],
-      badges: ["first_spot", "featured_hunter", "ten_breeds"],
+      badges: ["puppy_scout", "common_collector", "daily_walker"],
       friends: starterFriends,
       pendingFriendRequests: starterPendingFriendRequests,
       outgoingFriendRequests: [],
@@ -1064,7 +1178,6 @@ export const useSpotterStore = create<SpotterState>()(
       );
 
       const userScanCount = scans.filter((s) => s.userId === nextId && !s.isPendingBreed).length;
-      const scanBadges = isRealAuth ? recomputeScanBadges(scans, state.breeds, nextId) : state.badges;
 
       const hadDemoLeak =
         state.currentUser.id === "demo-user" ||
@@ -1079,10 +1192,27 @@ export const useSpotterStore = create<SpotterState>()(
         ? scans.filter((s) => s.userId === nextId).reduce((sum, s) => sum + s.pointsAwarded, 0)
         : state.weeklyPoints;
 
+      const nextFriends = scrubSocial ? [] : state.friends;
+      const nextReactions = scrubSocial ? [] : state.feedReactions;
+      const badgesPrevious = scrubSocial
+        ? []
+        : state.badges.filter((b) => isKnownBadge(b));
+      const badges = isRealAuth
+        ? recomputeBadges({
+            previous: badgesPrevious,
+            scans,
+            breeds: state.breeds,
+            userId: nextId,
+            friendsCount: nextFriends.length,
+            leagues: scrubSocial ? [] : state.leagues,
+            feedReactions: nextReactions,
+          })
+        : state.badges.filter((b) => isKnownBadge(b));
+
       return {
         scans,
         journalDogs,
-        badges: scanBadges,
+        badges,
         linkedAuthUserId: isRealAuth ? nextId : state.linkedAuthUserId,
         friends: scrubSocial ? [] : state.friends,
         pendingFriendRequests: scrubSocial ? [] : state.pendingFriendRequests,
@@ -1135,10 +1265,15 @@ export const useSpotterStore = create<SpotterState>()(
       friends,
       pendingFriendRequests: incoming,
       outgoingFriendRequests: outgoing,
-      badges:
-        friends.length >= 1 && !state.badges.includes("social_pup")
-          ? [...state.badges, "social_pup"]
-          : state.badges,
+      badges: recomputeBadges({
+        previous: state.badges,
+        scans: state.scans,
+        breeds: state.breeds,
+        userId: state.currentUser.id,
+        friendsCount: friends.length,
+        leagues: state.leagues,
+        feedReactions: state.feedReactions,
+      }),
     })),
   addOutgoingFriendRequest: (profile) =>
     set((state) =>
@@ -1163,16 +1298,37 @@ export const useSpotterStore = create<SpotterState>()(
           pendingFriendRequests: state.pendingFriendRequests.filter((p) => p.id !== fromUserId),
         };
       }
+      const nextFriends = [...state.friends, requester];
       return {
         pendingFriendRequests: state.pendingFriendRequests.filter((p) => p.id !== fromUserId),
-        friends: [...state.friends, requester],
-        badges: state.badges.includes("social_pup") ? state.badges : [...state.badges, "social_pup"],
+        friends: nextFriends,
+        badges: recomputeBadges({
+          previous: state.badges,
+          scans: state.scans,
+          breeds: state.breeds,
+          userId: state.currentUser.id,
+          friendsCount: nextFriends.length,
+          leagues: state.leagues,
+          feedReactions: state.feedReactions,
+        }),
       };
     }),
   removeFriendById: (otherUserId) =>
-    set((state) => ({
-      friends: state.friends.filter((f) => f.id !== otherUserId),
-    })),
+    set((state) => {
+      const nextFriends = state.friends.filter((f) => f.id !== otherUserId);
+      return {
+        friends: nextFriends,
+        badges: recomputeBadges({
+          previous: state.badges,
+          scans: state.scans,
+          breeds: state.breeds,
+          userId: state.currentUser.id,
+          friendsCount: nextFriends.length,
+          leagues: state.leagues,
+          feedReactions: state.feedReactions,
+        }),
+      };
+    }),
   setNotificationsFromServer: (notifications) => set(() => ({ notifications })),
   markAllNotificationsRead: () =>
     set((state) => {
@@ -1193,8 +1349,14 @@ export const useSpotterStore = create<SpotterState>()(
         const existing = knownById.get(author.id);
         knownById.set(author.id, { ...(existing ?? { city: "", country: "" }), ...author });
       }
+      /**
+       * Filter unlocks down to badge IDs the current client knows how to
+       * render so stale rows from a retired badge taxonomy never paint a
+       * "ghost" card on the feed.
+       */
+      const safeUnlocks = unlocks.filter((u) => isKnownBadge(u.badge));
       return {
-        badgeUnlocks: unlocks,
+        badgeUnlocks: safeUnlocks,
         knownUsers: Array.from(knownById.values()),
       };
     }),
@@ -1238,8 +1400,18 @@ export const useSpotterStore = create<SpotterState>()(
         endsAt,
         memberCount: 1,
       };
+      const nextLeagues = [league, ...state.leagues];
       return {
-        leagues: [league, ...state.leagues],
+        leagues: nextLeagues,
+        badges: recomputeBadges({
+          previous: state.badges,
+          scans: state.scans,
+          breeds: state.breeds,
+          userId: state.currentUser.id,
+          friendsCount: state.friends.length,
+          leagues: nextLeagues,
+          feedReactions: state.feedReactions,
+        }),
       };
     });
   },

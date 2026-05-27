@@ -22,7 +22,8 @@ import { refreshBadgeUnlocks } from "@/lib/syncBadgeUnlocks";
 import { refreshNotifications } from "@/lib/syncNotifications";
 import { refreshPublicScans } from "@/lib/syncPublicScans";
 import { getStartOfCurrentWeek } from "@/lib/utils/dates";
-import { badgeCopy } from "@/constants/badges";
+import { BadgeMedallion } from "@/components/BadgeMedallion";
+import { badgeCopy, badgeMeta, isKnownBadge } from "@/constants/badges";
 import { badgeColors, palette } from "@/constants/theme";
 import { useSpotterStore } from "@/store/useSpotterStore";
 import type { BadgeUnlock, ScanRecord, UserProfile } from "@/types/app";
@@ -375,8 +376,10 @@ export function SocialScreen() {
         ) : (
           feed.map((entry) => {
             if (entry.kind === "badge") {
+              if (!isKnownBadge(entry.unlock.badge)) return null;
               const accent = badgeColors[entry.unlock.badge];
               const copy = badgeCopy[entry.unlock.badge];
+              const meta = badgeMeta[entry.unlock.badge];
               return (
                 <View
                   key={`badge-${entry.unlock.id}`}
@@ -399,18 +402,7 @@ export function SocialScreen() {
                       size={40}
                     />
                   </Pressable>
-                  <View
-                    className="items-center justify-center rounded-2xl"
-                    style={{
-                      width: 40,
-                      height: 40,
-                      backgroundColor: `${accent}22`,
-                      borderWidth: 2,
-                      borderColor: accent,
-                    }}
-                  >
-                    <MaterialCommunityIcons name="trophy-variant" size={20} color={accent} />
-                  </View>
+                  <BadgeMedallion badge={entry.unlock.badge} unlocked size={48} />
                   <View className="min-w-0 flex-1">
                     <Text className="text-sm text-black dark:text-white" numberOfLines={2}>
                       <Text className="font-semibold">{entry.user.username}</Text>
@@ -421,6 +413,7 @@ export function SocialScreen() {
                       <Text className="text-zinc-600 dark:text-zinc-400">{" badge"}</Text>
                     </Text>
                     <Text className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      {meta.requirement} ·{" "}
                       {new Date(entry.unlock.unlockedAt).toLocaleString(undefined, {
                         month: "short",
                         day: "numeric",

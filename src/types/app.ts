@@ -4,17 +4,26 @@ import type { LeagueDurationPreset } from "@/constants/leagues";
 export type BreedRarity = "common" | "uncommon" | "rare" | "legendary";
 
 export type BadgeType =
-  | "first_spot"
-  | "ten_breeds"
-  | "quarter_dex"
-  | "half_dex"
-  | "full_dex"
-  | "rare_finder"
-  | "legend_spotter"
-  | "featured_hunter"
-  | "century"
-  | "social_pup"
-  | "top_dog_owner";
+  // Discovery — total non-pending scans
+  | "puppy_scout"
+  | "park_rover"
+  | "breed_hunter"
+  | "master_spotter"
+  // Collection — distinct breeds collected
+  | "common_collector"
+  | "kennel_expert"
+  | "dog_encyclopedia"
+  | "legendary_collector"
+  // Streaks — longest run of consecutive scan days
+  | "daily_walker"
+  | "consistent_collector"
+  | "dog_obsessed"
+  | "off_the_leash"
+  // Social
+  | "pack_member"
+  | "dog_squad"
+  | "rival_spotter"
+  | "community_favourite";
 
 export type FriendshipStatus = "pending" | "accepted" | "declined";
 
