@@ -11,7 +11,7 @@ export const rareLegendaryBreedCrops: Record<
   "bernese-mountain-dog": { x: 23, y: 38, w: 148, h: 103, feetY: 140 },
   "rhodesian-ridgeback": { x: 171, y: 39, w: 170, h: 102, feetY: 140 },
   weimaraner: { x: 341, y: 42, w: 171, h: 99, feetY: 140 },
-  dobermann: { x: 510, y: 31, w: 150, h: 139, feetY: 140, dx:-7 },
+  dobermann: { x: 510, y: 31, w: 150, h: 139, feetY: 140, dx: -7, scale: 1.04 },
   "great-dane": { x: 683, y: 26, w: 169, h: 115, feetY: 140 },
   "german-shorthaired-pointer": { x: 872, y: 63, w: 149, h: 78, feetY: 140 },
   samoyed: { x: 24, y: 238, w: 147, h: 130, feetY: 367 },

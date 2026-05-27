@@ -21,6 +21,7 @@ import { SocialScreen } from "@/features/social/SocialScreen";
 import { DogProfileScreen } from "@/features/social/DogProfileScreen";
 import { FriendsScreen } from "@/features/social/FriendsScreen";
 import { TopDogsScreen } from "@/features/social/TopDogsScreen";
+import { UserProfileScreen } from "@/features/social/UserProfileScreen";
 import { AdminBreedEditorScreen } from "@/features/admin/AdminBreedEditorScreen";
 import { BreedSelectorScreen } from "@/features/spot/BreedSelectorScreen";
 import { DogNamingScreen } from "@/features/spot/DogNamingScreen";
@@ -254,6 +255,7 @@ export function AppNavigator() {
           />
           <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: "Friends" }} />
           <Stack.Screen name="DogProfile" component={DogProfileScreen} options={{ title: "Dog Profile" }} />
+          <Stack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "Profile" }} />
           <Stack.Screen name="TopDogs" component={TopDogsScreen} options={{ title: "Top Dogs" }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
           <Stack.Screen name="Privacy" component={PrivacyScreen} options={{ title: "Privacy" }} />

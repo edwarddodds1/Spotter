@@ -10,10 +10,12 @@ import {
   View,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 
 import { ComingSoonCard } from "@/components/ComingSoonCard";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { UserAvatar } from "@/components/UserAvatar";
+import { openUserProfileNavigate } from "@/components/UsernameLink";
 import { palette } from "@/constants/theme";
 import { PILOT_FRIENDS_ENABLED } from "@/lib/pilotFeatures";
 import { refreshFriendsScans } from "@/lib/syncFriendScans";
@@ -44,6 +46,7 @@ function FriendsPilotComingSoon() {
 type SearchState = "idle" | "searching" | "ready" | "error";
 
 function FriendsScreenContent() {
+  const navigation = useNavigation<any>();
   const session = useAuthStore((state) => state.session);
   const myUserId = session?.user?.id ?? null;
   const currentUser = useSpotterStore((state) => state.currentUser);
@@ -313,7 +316,12 @@ function FriendsScreenContent() {
                   key={profile.id}
                   className="mb-2 flex-row items-center justify-between rounded-3xl border border-zinc-200 bg-white px-4 py-3 dark:border-border dark:bg-card"
                 >
-                  <View className="min-w-0 flex-1 flex-row items-center gap-3">
+                  <Pressable
+                    onPress={() => openUserProfileNavigate(navigation, myUserId, profile.id)}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open ${profile.username}'s profile`}
+                    className="min-w-0 flex-1 flex-row items-center gap-3"
+                  >
                     <UserAvatar username={profile.username} avatarUrl={profile.avatarUrl} />
                     <View className="min-w-0 flex-1">
                       <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
@@ -323,7 +331,7 @@ function FriendsScreenContent() {
                         {profile.totalScans} scan{profile.totalScans === 1 ? "" : "s"}
                       </Text>
                     </View>
-                  </View>
+                  </Pressable>
                   {isFriend ? (
                     <View className="rounded-full bg-emerald-100 px-3 py-1.5 dark:bg-emerald-900/30">
                       <Text className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Friends</Text>
@@ -374,7 +382,12 @@ function FriendsScreenContent() {
                 key={request.id}
                 className="mb-3 flex-row items-center justify-between rounded-3xl border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/20"
               >
-                <View className="min-w-0 flex-1 flex-row items-center gap-3">
+                <Pressable
+                  onPress={() => openUserProfileNavigate(navigation, myUserId, request.id)}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${request.username}'s profile`}
+                  className="min-w-0 flex-1 flex-row items-center gap-3"
+                >
                   <UserAvatar username={request.username} avatarUrl={request.avatarUrl} />
                   <View className="min-w-0 flex-1">
                     <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
@@ -382,7 +395,7 @@ function FriendsScreenContent() {
                     </Text>
                     <Text className="text-xs text-zinc-600 dark:text-zinc-400">Wants to be friends.</Text>
                   </View>
-                </View>
+                </Pressable>
                 <View className="flex-row items-center gap-2">
                   <Pressable
                     onPress={() => void onDecline(request)}
@@ -415,7 +428,12 @@ function FriendsScreenContent() {
                 key={request.id}
                 className="mb-3 flex-row items-center justify-between rounded-3xl border border-zinc-200 bg-white px-4 py-3 dark:border-border dark:bg-card"
               >
-                <View className="min-w-0 flex-1 flex-row items-center gap-3">
+                <Pressable
+                  onPress={() => openUserProfileNavigate(navigation, myUserId, request.id)}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${request.username}'s profile`}
+                  className="min-w-0 flex-1 flex-row items-center gap-3"
+                >
                   <UserAvatar username={request.username} avatarUrl={request.avatarUrl} />
                   <View className="min-w-0 flex-1">
                     <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
@@ -423,7 +441,7 @@ function FriendsScreenContent() {
                     </Text>
                     <Text className="text-xs text-zinc-500 dark:text-zinc-400">Awaiting their reply.</Text>
                   </View>
-                </View>
+                </Pressable>
                 <Pressable
                   onPress={() => void onCancelOutgoing(request)}
                   disabled={isBusy}
@@ -455,7 +473,12 @@ function FriendsScreenContent() {
               key={friend.id}
               className="mb-3 flex-row items-center justify-between rounded-3xl border border-zinc-200 bg-white px-4 py-3 dark:border-border dark:bg-card"
             >
-              <View className="min-w-0 flex-1 flex-row items-center gap-3">
+              <Pressable
+                onPress={() => openUserProfileNavigate(navigation, myUserId, friend.id)}
+                accessibilityRole="link"
+                accessibilityLabel={`Open ${friend.username}'s profile`}
+                className="min-w-0 flex-1 flex-row items-center gap-3"
+              >
                 <UserAvatar username={friend.username} avatarUrl={friend.avatarUrl} />
                 <View className="min-w-0 flex-1">
                   <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
@@ -465,7 +488,7 @@ function FriendsScreenContent() {
                     {friend.totalScans} scan{friend.totalScans === 1 ? "" : "s"}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
               <Pressable
                 onPress={() => setUnfriendTarget(friend)}
                 className="rounded-full border border-zinc-300 px-3 py-1.5 dark:border-zinc-700"

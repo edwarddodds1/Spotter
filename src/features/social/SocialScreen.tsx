@@ -11,6 +11,7 @@ import { PointsBadge } from "@/components/PointsBadge";
 import { RarityBadge } from "@/components/RarityBadge";
 import { SpotPhotoEditorModal } from "@/components/SpotPhotoEditorModal";
 import { UserAvatar } from "@/components/UserAvatar";
+import { openUserProfileNavigate } from "@/components/UsernameLink";
 import { FeedPostSocialBar } from "@/features/social/FeedPostSocialBar";
 import { deleteSpot, replaceScanPhoto } from "@/features/spot/spotService";
 import { shareScanCard } from "@/features/social/shareScanCard";
@@ -304,7 +305,12 @@ export function SocialScreen() {
               className="mb-4 overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-sm dark:border-border dark:bg-card dark:shadow-none"
             >
               <View className="flex-row items-center justify-between px-4 pb-3 pt-4">
-                <View className="min-w-0 flex-1 flex-row items-center gap-3">
+                <Pressable
+                  onPress={() => openUserProfileNavigate(navigation, currentUser.id, user.id)}
+                  className="min-w-0 flex-1 flex-row items-center gap-3"
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open ${user.username}'s profile`}
+                >
                   <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={44} />
                   <View className="min-w-0 flex-1">
                     <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
@@ -319,7 +325,7 @@ export function SocialScreen() {
                       })}
                     </Text>
                   </View>
-                </View>
+                </Pressable>
                 <View className="flex-row items-center gap-2">
                   {scan.userId === currentUser.id ? (
                     <Pressable
@@ -359,7 +365,6 @@ export function SocialScreen() {
                       <MaterialCommunityIcons name="trash-can-outline" size={18} color="#b91c1c" />
                     </Pressable>
                   ) : null}
-                  <PointsBadge points={scan.pointsAwarded} featured={scan.matchedFeaturedBreed} />
                 </View>
               </View>
 
@@ -385,7 +390,10 @@ export function SocialScreen() {
                       <Text className="mt-2 text-sm leading-5 text-zinc-700 dark:text-zinc-300">{scan.spotComment}</Text>
                     ) : null}
                   </View>
-                  <RarityBadge rarity={breed.rarity} />
+                  <View className="items-end gap-2">
+                    <RarityBadge rarity={breed.rarity} />
+                    <PointsBadge points={scan.pointsAwarded} featured={scan.matchedFeaturedBreed} />
+                  </View>
                 </View>
 
                 <FeedPostSocialBar scanId={scan.id} />

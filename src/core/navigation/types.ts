@@ -9,6 +9,7 @@ export type RootStackParamList = {
   LeagueDetail: { leagueId: string; leagueName: string; memberCount: number; maxMembers: number };
   Friends: undefined;
   DogProfile: { dogProfileId: string };
+  UserProfile: { userId: string };
   TopDogs: undefined;
   Settings: undefined;
   Privacy: undefined;

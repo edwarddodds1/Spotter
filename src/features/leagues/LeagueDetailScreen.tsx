@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useNavigation } from "@react-navigation/native";
 
 import { UserAvatar } from "@/components/UserAvatar";
+import { openUserProfileNavigate } from "@/components/UsernameLink";
 import { badgeColors } from "@/constants/theme";
 import type { RootStackParamList } from "@/core/navigation/types";
 import { useSpotterStore } from "@/store/useSpotterStore";
@@ -10,6 +12,7 @@ import { useSpotterStore } from "@/store/useSpotterStore";
 type Props = NativeStackScreenProps<RootStackParamList, "LeagueDetail">;
 
 export function LeagueDetailScreen({ route }: Props) {
+  const navigation = useNavigation<any>();
   const leagueId = route.params.leagueId;
   const currentUser = useSpotterStore((state) => state.currentUser);
   const friends = useSpotterStore((state) => state.friends);
@@ -58,7 +61,12 @@ export function LeagueDetailScreen({ route }: Props) {
           key={`leader-${entry.userId}`}
           className="mb-3 flex-row items-center justify-between rounded-3xl border border-zinc-200 bg-white px-4 py-4 dark:border-border dark:bg-card"
         >
-          <View className="flex-row items-center gap-3">
+          <Pressable
+            onPress={() => openUserProfileNavigate(navigation, currentUser.id, entry.userId)}
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${entry.username}'s profile`}
+            className="min-w-0 flex-1 flex-row items-center gap-3"
+          >
             <Text className="w-8 text-lg font-semibold text-amber">#{entry.rank}</Text>
             <UserAvatar username={entry.username} avatarUrl={entry.avatarUrl} />
             <View>
@@ -69,7 +77,7 @@ export function LeagueDetailScreen({ route }: Props) {
                 ))}
               </View>
             </View>
-          </View>
+          </Pressable>
           <Text className="font-semibold text-black dark:text-white">{entry.weeklyPoints} pts</Text>
         </View>
       ))}
@@ -80,13 +88,20 @@ export function LeagueDetailScreen({ route }: Props) {
           key={`member-${member.id}`}
           className="mb-3 flex-row items-center gap-3 rounded-3xl border border-zinc-200 bg-white px-4 py-4 dark:border-border dark:bg-card"
         >
-          <UserAvatar username={member.username} avatarUrl={member.avatarUrl} />
-          <View className="min-w-0 flex-1">
-            <Text className="font-semibold text-black dark:text-white">{member.username}</Text>
-            <Text className="text-xs text-zinc-500 dark:text-zinc-400">
-              {member.city && member.country ? `${member.city}, ${member.country}` : "Location not set"}
-            </Text>
-          </View>
+          <Pressable
+            onPress={() => openUserProfileNavigate(navigation, currentUser.id, member.id)}
+            accessibilityRole="link"
+            accessibilityLabel={`Open ${member.username}'s profile`}
+            className="min-w-0 flex-1 flex-row items-center gap-3"
+          >
+            <UserAvatar username={member.username} avatarUrl={member.avatarUrl} />
+            <View className="min-w-0 flex-1">
+              <Text className="font-semibold text-black dark:text-white">{member.username}</Text>
+              <Text className="text-xs text-zinc-500 dark:text-zinc-400">
+                {member.city && member.country ? `${member.city}, ${member.country}` : "Location not set"}
+              </Text>
+            </View>
+          </Pressable>
           {member.id !== currentUser.id ? (
             friendIds.has(member.id) || friendUsernames.has(member.username.toLowerCase()) ? (
               <View className="rounded-full bg-emerald-100 px-3 py-1.5 dark:bg-emerald-900/30">

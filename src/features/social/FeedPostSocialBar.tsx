@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { Keyboard, Pressable, Text, TextInput, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
 
+import { openUserProfileNavigate } from "@/components/UsernameLink";
 import { FEED_REACTION_OPTIONS, MAX_FEED_COMMENT_LENGTH } from "@/constants/feedSocial";
 import { palette } from "@/constants/theme";
 import { useSpotterStore } from "@/store/useSpotterStore";
@@ -13,6 +15,7 @@ function lookupUser(userId: string, currentUser: UserProfile, friends: UserProfi
 }
 
 export function FeedPostSocialBar({ scanId }: { scanId: string }) {
+  const navigation = useNavigation<any>();
   const currentUser = useSpotterStore((s) => s.currentUser);
   const friends = useSpotterStore((s) => s.friends);
   /** Subscribe to stable array refs — filtered copies in selectors cause React 19 infinite update loops. */
@@ -81,18 +84,36 @@ export function FeedPostSocialBar({ scanId }: { scanId: string }) {
           {comments.map((c) => {
             const author = lookupUser(c.userId, currentUser, friends);
             const isMine = c.userId === currentUser.id;
+            const authorName = author?.username ?? "Someone";
+            const goToAuthor = author
+              ? () => openUserProfileNavigate(navigation, currentUser.id, author.id)
+              : undefined;
             return (
               <View key={c.id} className="flex-row gap-2">
-                <View className="mt-0.5 h-8 w-8 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-800">
+                <Pressable
+                  onPress={goToAuthor}
+                  disabled={!goToAuthor}
+                  accessibilityRole={goToAuthor ? "link" : undefined}
+                  accessibilityLabel={goToAuthor ? `Open ${authorName}'s profile` : undefined}
+                  className="mt-0.5 h-8 w-8 items-center justify-center rounded-full bg-zinc-200 dark:bg-zinc-800"
+                >
                   <Text className="text-xs font-bold text-zinc-600 dark:text-zinc-300">
-                    {(author?.username ?? "?").slice(0, 1).toUpperCase()}
+                    {authorName.slice(0, 1).toUpperCase()}
                   </Text>
-                </View>
+                </Pressable>
                 <View className="min-w-0 flex-1 rounded-2xl bg-zinc-50 px-3 py-2 dark:bg-zinc-950/80">
                   <View className="flex-row items-center justify-between gap-2">
-                    <Text className="text-xs font-semibold text-zinc-700 dark:text-zinc-300" numberOfLines={1}>
-                      {author?.username ?? "Someone"}
-                    </Text>
+                    <Pressable
+                      onPress={goToAuthor}
+                      disabled={!goToAuthor}
+                      accessibilityRole={goToAuthor ? "link" : undefined}
+                      accessibilityLabel={goToAuthor ? `Open ${authorName}'s profile` : undefined}
+                      className="min-w-0 flex-1"
+                    >
+                      <Text className="text-xs font-semibold text-zinc-700 dark:text-zinc-300" numberOfLines={1}>
+                        {authorName}
+                      </Text>
+                    </Pressable>
                     {isMine ? (
                       <Pressable onPress={() => removeFeedComment(c.id)} hitSlop={8} accessibilityLabel="Remove comment">
                         <MaterialCommunityIcons name="close" size={16} color={palette.muted} />
