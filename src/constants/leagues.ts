@@ -4,17 +4,22 @@ const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
  * Resolves the base URL used for league invite links.
  *
  * Priority:
- * 1. Current browser origin (web) — matches localhost, Vercel previews and custom domains automatically.
- * 2. `EXPO_PUBLIC_SITE_URL` env (native or SSR) — set this to your public web URL so native invites
- *    open in a browser/universal link rather than a dead scheme.
- * 3. `spotter://` app scheme as a last resort (only works if the recipient has the app installed).
+ * 1. `EXPO_PUBLIC_SITE_URL` env — explicit override. Set this in `.env.local`
+ *    AND on Vercel (Production + Preview) to pin invite links to your public
+ *    Vercel URL regardless of where the link is generated. Crucially this
+ *    means invites copied while running `expo start --web` on localhost still
+ *    point at the deployed site.
+ * 2. Current browser origin (web) — used when no env is configured, so
+ *    Vercel deploys "just work" with whatever origin the user opened.
+ * 3. `spotter://` app scheme as a last resort (only works if the recipient
+ *    has the app installed).
  */
 function resolveInviteBaseUrl(): string {
+  const configured = process.env.EXPO_PUBLIC_SITE_URL?.trim();
+  if (configured) return trimTrailingSlash(configured);
   if (typeof window !== "undefined" && window.location?.origin) {
     return trimTrailingSlash(window.location.origin);
   }
-  const configured = process.env.EXPO_PUBLIC_SITE_URL?.trim();
-  if (configured) return trimTrailingSlash(configured);
   return "spotter:/";
 }
 

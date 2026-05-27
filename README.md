@@ -40,7 +40,11 @@ npm run preview:web
 3. **Environment Variables → Production** (also add to Preview if you test PRs)
    - `Supabase_URL` — `https://<project-ref>.supabase.co`
    - `Supabase_Publishable_Key` — `sb_publishable_…`
-   - (`EXPO_PUBLIC_SITE_URL` optional; web auth uses the current origin automatically)
+   - `EXPO_PUBLIC_SITE_URL` — `https://<your-app>.vercel.app` (recommended).
+     This pins league invite links to your public Vercel URL even when they're
+     generated from `expo start --web` on localhost. Also add it to your
+     local `.env` so dev sessions emit shareable links instead of
+     `http://localhost:8081/...`.
 4. Deploy.
 
 `vercel.json` configures static hosting + SPA rewrites so React Navigation routes resolve to `index.html` on refresh.

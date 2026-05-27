@@ -11,7 +11,6 @@ import {
   View,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
-import * as Location from "expo-location";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { useNavigation } from "@react-navigation/native";
@@ -25,13 +24,20 @@ import {
   leagueInviteUrl,
   type LeagueDurationPreset,
 } from "@/constants/leagues";
-import { badgeColors } from "@/constants/theme";
-import type { League } from "@/types/app";
+import { rarityColors, rarityHexBorderColors } from "@/constants/theme";
+import type { BreedRarity, League } from "@/types/app";
 import { useSpotterStore } from "@/store/useSpotterStore";
 import type { RootStackParamList } from "@/core/navigation/types";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-const tabs = ["Friends", "Area", "Global"] as const;
+/**
+ * Area leaderboards depend on richer map / geofencing UX that isn't ready yet,
+ * so the tab is hidden for now. Re-add "Area" here when the location-based
+ * ranking experience is brought back.
+ */
+const tabs = ["Friends", "Global"] as const;
+
+const RARITY_ORDER: BreedRarity[] = ["common", "uncommon", "rare", "legendary"];
 
 const DURATION_OPTIONS: { id: LeagueDurationPreset; label: string }[] = [
   { id: "ongoing", label: "Ongoing" },
@@ -93,14 +99,42 @@ function LeaguesScreenContent() {
   const [duration, setDuration] = useState<LeagueDurationPreset>("ongoing");
   const [customDays, setCustomDays] = useState("14");
   const [copiedLeagueId, setCopiedLeagueId] = useState<string | null>(null);
-  const [locationStatus, setLocationStatus] = useState("Unknown");
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentUser = useSpotterStore((state) => state.currentUser);
   const friends = useSpotterStore((state) => state.friends);
   const leagues = useSpotterStore((state) => state.leagues);
-  const badges = useSpotterStore((state) => state.badges);
   const weeklyPoints = useSpotterStore((state) => state.weeklyPoints);
+  const scans = useSpotterStore((state) => state.scans);
+  const breeds = useSpotterStore((state) => state.breeds);
   const createLeague = useSpotterStore((state) => state.createLeague);
+
+  const breedRarityById = useMemo(() => {
+    const map = new Map<string, BreedRarity>();
+    for (const breed of breeds) map.set(breed.id, breed.rarity);
+    return map;
+  }, [breeds]);
+
+  /**
+   * All-time per-user rarity scan counts. Used by the Global leaderboard to
+   * mirror the friends-league row layout (the friends-league version is scoped
+   * to a single league window; Global has no season so it shows lifetime).
+   */
+  const scansByRarityByUser = useMemo(() => {
+    const acc = new Map<string, Record<BreedRarity, number>>();
+    for (const scan of scans) {
+      if (scan.isPendingBreed) continue;
+      if (!scan.breedId) continue;
+      const rarity = breedRarityById.get(scan.breedId);
+      if (!rarity) continue;
+      let counts = acc.get(scan.userId);
+      if (!counts) {
+        counts = { common: 0, uncommon: 0, rare: 0, legendary: 0 };
+        acc.set(scan.userId, counts);
+      }
+      counts[rarity] += 1;
+    }
+    return acc;
+  }, [breedRarityById, scans]);
 
   useEffect(() => {
     return () => {
@@ -109,24 +143,32 @@ function LeaguesScreenContent() {
   }, []);
 
   const leaderboard = useMemo(() => {
+    const zeroCounts = (): Record<BreedRarity, number> => ({
+      common: 0,
+      uncommon: 0,
+      rare: 0,
+      legendary: 0,
+    });
+
     const base = [
-      { userId: currentUser.id, username: currentUser.username, avatarUrl: currentUser.avatarUrl, weeklyPoints, badges },
+      {
+        userId: currentUser.id,
+        username: currentUser.username,
+        avatarUrl: currentUser.avatarUrl,
+        weeklyPoints,
+        rarityCounts: scansByRarityByUser.get(currentUser.id) ?? zeroCounts(),
+      },
       ...friends.map((friend, index) => ({
         userId: friend.id,
         username: friend.username,
         avatarUrl: friend.avatarUrl,
         weeklyPoints: Math.max(weeklyPoints - (index + 1) * 3, 2),
-        badges: badges.slice(0, Math.max(1, badges.length - index - 1)),
+        rarityCounts: scansByRarityByUser.get(friend.id) ?? zeroCounts(),
       })),
     ].sort((a, b) => b.weeklyPoints - a.weeklyPoints);
 
     return base.map((entry, index) => ({ ...entry, rank: index + 1 }));
-  }, [badges, currentUser, friends, weeklyPoints]);
-
-  const requestLocation = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    setLocationStatus(status === "granted" ? "Precise (10km radius)" : "City fallback");
-  };
+  }, [currentUser, friends, scansByRarityByUser, weeklyPoints]);
 
   const submitCreateLeague = () => {
     const trimmed = leagueName.trim();
@@ -416,18 +458,6 @@ function LeaguesScreenContent() {
         </View>
       ) : null}
 
-      {activeTab === "Area" ? (
-        <View className="mt-6 rounded-3xl border border-zinc-200 bg-white p-4 dark:border-border dark:bg-card">
-          <Text className="text-lg font-semibold text-black dark:text-white">Area leaderboard</Text>
-          <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Location status: {locationStatus}. The backend function will rank users inside a 10km radius and fall back to city-level when precise access is denied.
-          </Text>
-          <Pressable onPress={requestLocation} className="mt-4 rounded-2xl bg-amber px-4 py-3">
-            <Text className="text-center font-semibold text-white">Request location</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
       {activeTab !== "Friends" ? (
         <View className="mt-6">
           {leaderboard.map((entry) => (
@@ -442,20 +472,38 @@ function LeaguesScreenContent() {
                 className="min-w-0 flex-1 flex-row items-center gap-3"
               >
                 <Text className="w-8 text-lg font-semibold text-amber">#{entry.rank}</Text>
-                <UserAvatar username={entry.username} avatarUrl={entry.avatarUrl} />
+                <View
+                  className="rounded-full"
+                  style={{ borderWidth: 2, borderColor: "#000" }}
+                >
+                  <UserAvatar username={entry.username} avatarUrl={entry.avatarUrl} />
+                </View>
                 <View className="min-w-0 flex-1">
-                  <Text className="font-semibold text-black dark:text-white">{entry.username}</Text>
-                  <View className="mt-2 flex-row gap-1">
-                    {entry.badges
-                      .filter((badge) => Boolean(badgeColors[badge]))
-                      .slice(0, 4)
-                      .map((badge) => (
-                        <View
-                          key={badge}
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: badgeColors[badge] }}
-                        />
-                      ))}
+                  <Text
+                    className="text-2xl font-semibold text-black dark:text-white"
+                    numberOfLines={1}
+                  >
+                    {entry.username}
+                  </Text>
+                  <View className="mt-1.5 flex-row gap-1.5">
+                    {RARITY_ORDER.map((rarity) => (
+                      <View
+                        key={`${entry.userId}-${rarity}`}
+                        className="items-center justify-center rounded-full"
+                        style={{
+                          width: 26,
+                          height: 26,
+                          backgroundColor: rarityColors[rarity],
+                          borderWidth: 1.5,
+                          borderColor: rarityHexBorderColors[rarity],
+                        }}
+                        accessibilityLabel={`${entry.rarityCounts[rarity]} ${rarity} scans`}
+                      >
+                        <Text className="text-[11px] font-bold text-white">
+                          {entry.rarityCounts[rarity]}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 </View>
               </Pressable>
