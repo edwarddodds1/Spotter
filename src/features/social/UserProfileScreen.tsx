@@ -13,6 +13,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ScanPhoto } from "@/components/ScanPhoto";
 import { UserAvatar } from "@/components/UserAvatar";
+import { RarityCompletionBars } from "@/components/RarityCompletionBars";
 import { palette } from "@/constants/theme";
 import type { RootStackParamList } from "@/core/navigation/types";
 import {
@@ -222,6 +223,16 @@ export function UserProfileScreen({ route, navigation }: Props) {
         <StatPill label="Scans" value={String(profile.totalScans)} />
         <StatPill label="Breeds" value={String(breedsCollected)} />
         <StatPill label="Visible" value={String(scans.length)} />
+      </View>
+
+      <View className="mx-4 mt-3 rounded-3xl border border-zinc-200 bg-white px-4 py-3 dark:border-border dark:bg-card">
+        <View className="mb-2 flex-row items-end justify-between">
+          <View className="flex-1">
+            <Text className="text-base font-bold text-black dark:text-white">Rarity completion</Text>
+            <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Progress by rarity (public spots).</Text>
+          </View>
+        </View>
+        <RarityCompletionBars variant="compact" breeds={breeds} scans={scans} userId={targetUserId} />
       </View>
 
       {!isSelf ? (

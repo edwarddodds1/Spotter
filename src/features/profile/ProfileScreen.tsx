@@ -22,6 +22,7 @@ import { uploadAvatar } from "@/lib/supabase/storage";
 import { useAuthStore } from "@/store/useAuthStore";
 import { selectCollectedBreedIds, useSpotterStore } from "@/store/useSpotterStore";
 import type { BadgeType } from "@/types/app";
+import { RarityCompletionBars } from "@/components/RarityCompletionBars";
 
 export function ProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -44,7 +45,8 @@ export function ProfileScreen() {
   const [avatarPick, setAvatarPick] = useState<{ uri: string; width: number; height: number } | null>(null);
   const [avatarSourceSheetVisible, setAvatarSourceSheetVisible] = useState(false);
 
-  const collectedCount = selectCollectedBreedIds(scans, currentUser.id).size;
+  const collectedBreedIds = selectCollectedBreedIds(scans, currentUser.id);
+  const collectedCount = collectedBreedIds.size;
   const badgeUnlockedSet = useMemo(() => new Set<BadgeType>(earnedBadges), [earnedBadges]);
 
   const mostRecentSpot = useMemo(() => {
@@ -334,6 +336,22 @@ export function ProfileScreen() {
             />
             <Stat label="Breeds" value={`${collectedCount}/${DOGDEX_TOTAL}`} icon="paw" />
             <Stat label="Leagues" value={String(leagues.length)} icon="trophy-outline" />
+          </View>
+
+          <View className="px-4 pb-2">
+            <View className="mb-2 flex-row items-end justify-between">
+              <View className="flex-1">
+                <Text className="text-lg font-bold text-black dark:text-white">Rarity completion</Text>
+                <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                  {collectedCount} of {DOGDEX_TOTAL} breeds collected — progress by rarity.
+                </Text>
+              </View>
+            </View>
+            <RarityCompletionBars
+              variant="compact"
+              breeds={breeds}
+              collectedBreedIds={collectedBreedIds}
+            />
           </View>
 
           {mostRecentSpot ? (
