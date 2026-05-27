@@ -15,6 +15,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { fetchFriendshipsForUser } from "@/lib/supabase/friendshipsRemote";
 import { recoverWebSessionFromUrl } from "@/lib/supabase/recoverSessionFromUrl";
 import { ensureUserProfile } from "@/lib/supabase/profile";
+import { pushLocalBadgeUnlocks, refreshBadgeUnlocks } from "@/lib/syncBadgeUnlocks";
 import { refreshFriendsScans } from "@/lib/syncFriendScans";
 import { refreshNotifications } from "@/lib/syncNotifications";
 import { refreshPublicScans } from "@/lib/syncPublicScans";
@@ -170,6 +171,18 @@ function RootAppInner() {
     void refreshBreedsFromRemote();
   }, [session?.user?.id, refreshBreedsFromRemote]);
 
+  /**
+   * Whenever the local `badges` set changes (e.g. a scan triggers a new
+   * unlock), persist any newly-earned badges to Supabase so they appear in
+   * everyone's Social feed. `pushLocalBadgeUnlocks` is idempotent and
+   * memo'd per-session so unchanged sets don't write.
+   */
+  const badgesSnapshot = useSpotterStore((s) => s.badges);
+  useEffect(() => {
+    if (!session?.user || !isSupabaseConfigured) return;
+    void pushLocalBadgeUnlocks();
+  }, [badgesSnapshot, session?.user?.id]);
+
   useEffect(() => {
     if (!session?.user) return;
     const run = async () => {
@@ -231,6 +244,12 @@ function RootAppInner() {
         await refreshNotifications();
       } catch (err) {
         console.warn("[RootApp] Could not load notifications:", err);
+      }
+      try {
+        await refreshBadgeUnlocks();
+        await pushLocalBadgeUnlocks();
+      } catch (err) {
+        console.warn("[RootApp] Could not sync badge unlocks:", err);
       }
     };
     void run();

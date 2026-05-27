@@ -15,6 +15,7 @@ import { endsAtForDuration, generateUniqueInviteCode } from "@/constants/leagues
 import type {
   AppNotification,
   BadgeType,
+  BadgeUnlock,
   Breed,
   CreateLeagueInput,
   DogProfile,
@@ -106,6 +107,8 @@ export interface SpotterState {
   knownUsers: UserProfile[];
   /** Most recent in-app notifications for the signed-in user (server source of truth). */
   notifications: AppNotification[];
+  /** Recent badge unlocks across all users — used to render achievements in the Social feed. */
+  badgeUnlocks: BadgeUnlock[];
   leagues: League[];
   feedReactions: FeedReaction[];
   feedComments: FeedComment[];
@@ -234,6 +237,12 @@ export interface SpotterState {
   setNotificationsFromServer: (notifications: AppNotification[]) => void;
   /** Mark every notification as read locally (after server confirmation). */
   markAllNotificationsRead: () => void;
+  /**
+   * Replace the badge-unlocks feed source with the latest server snapshot.
+   * Also merges any user rows from the same query into `knownUsers` so the
+   * feed can render avatars/usernames without per-row lookups.
+   */
+  setBadgeUnlocksFromServer: (input: { unlocks: BadgeUnlock[]; users: UserProfile[] }) => void;
   createLeague: (input: CreateLeagueInput) => void;
   setThemeMode: (mode: "light" | "dark") => void;
   toggleFeedReaction: (scanId: string, kind: FeedReactionKind) => void;
@@ -576,6 +585,7 @@ export const useSpotterStore = create<SpotterState>()(
   outgoingFriendRequests: [],
   knownUsers: [],
   notifications: [],
+  badgeUnlocks: [],
   leagues: [],
   feedReactions: [],
   feedComments: [],
@@ -1079,6 +1089,7 @@ export const useSpotterStore = create<SpotterState>()(
         outgoingFriendRequests: scrubSocial ? [] : state.outgoingFriendRequests,
         knownUsers: scrubSocial ? [] : state.knownUsers,
         notifications: scrubSocial ? [] : state.notifications,
+        badgeUnlocks: scrubSocial ? [] : state.badgeUnlocks,
         leagues: scrubSocial ? [] : state.leagues,
         feedReactions: scrubSocial ? [] : state.feedReactions,
         feedComments: scrubSocial ? [] : state.feedComments,
@@ -1169,6 +1180,22 @@ export const useSpotterStore = create<SpotterState>()(
       const now = new Date().toISOString();
       return {
         notifications: state.notifications.map((n) => (n.readAt ? n : { ...n, readAt: now })),
+      };
+    }),
+  setBadgeUnlocksFromServer: ({ unlocks, users }) =>
+    set((state) => {
+      const friendIds = new Set(state.friends.map((f) => f.id));
+      const knownById = new Map(state.knownUsers.map((u) => [u.id, u] as const));
+      for (const author of users) {
+        if (!author?.id) continue;
+        if (author.id === state.currentUser.id) continue;
+        if (friendIds.has(author.id)) continue;
+        const existing = knownById.get(author.id);
+        knownById.set(author.id, { ...(existing ?? { city: "", country: "" }), ...author });
+      }
+      return {
+        badgeUnlocks: unlocks,
+        knownUsers: Array.from(knownById.values()),
       };
     }),
   addLeagueFriendRequest: (username) =>

@@ -18,12 +18,14 @@ import { deleteSpot, replaceScanPhoto } from "@/features/spot/spotService";
 import { shareScanCard } from "@/features/social/shareScanCard";
 import { PILOT_FRIENDS_ENABLED } from "@/lib/pilotFeatures";
 import { resolveScanPhotoDisplayUrl } from "@/lib/supabase/scanPhotoUrl";
+import { refreshBadgeUnlocks } from "@/lib/syncBadgeUnlocks";
 import { refreshNotifications } from "@/lib/syncNotifications";
 import { refreshPublicScans } from "@/lib/syncPublicScans";
 import { getStartOfCurrentWeek } from "@/lib/utils/dates";
-import { palette } from "@/constants/theme";
+import { badgeCopy } from "@/constants/badges";
+import { badgeColors, palette } from "@/constants/theme";
 import { useSpotterStore } from "@/store/useSpotterStore";
-import type { UserProfile } from "@/types/app";
+import type { BadgeUnlock, ScanRecord, UserProfile } from "@/types/app";
 
 const rankAccent = ["#f59e0b", "#94a3b8", "#b45309"];
 
@@ -58,6 +60,7 @@ export function SocialScreen() {
   const currentUser = useSpotterStore((state) => state.currentUser);
   const friends = useSpotterStore((state) => state.friends);
   const knownUsers = useSpotterStore((state) => state.knownUsers);
+  const badgeUnlocks = useSpotterStore((state) => state.badgeUnlocks);
   const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
   const notifications = useSpotterStore((state) => state.notifications);
   const hasUnreadNotifications = notifications.some((n) => n.readAt === null);
@@ -140,6 +143,7 @@ export function SocialScreen() {
     useCallback(() => {
       void refreshPublicScans();
       void refreshNotifications();
+      void refreshBadgeUnlocks();
     }, []),
   );
 
@@ -150,26 +154,63 @@ export function SocialScreen() {
     return allScans.filter((s) => friendIds.has(s.userId) && !s.isPendingBreed);
   }, [allScans, feedMode, friendIds]);
 
-  const feed = useMemo(() => {
-    const rows: {
-      scan: (typeof allScans)[number];
-      breed: (typeof breeds)[number];
-      dogProfile: (typeof dogProfiles)[number] | null;
-      user: UserProfile;
-    }[] = [];
+  const feedSourceBadgeUnlocks = useMemo(() => {
+    if (feedMode === "public") return badgeUnlocks;
+    return badgeUnlocks.filter(
+      (u) => u.userId === currentUser.id || friendIds.has(u.userId),
+    );
+  }, [badgeUnlocks, currentUser.id, feedMode, friendIds]);
+
+  type ScanFeedEntry = {
+    kind: "scan";
+    scan: ScanRecord;
+    breed: (typeof breeds)[number];
+    dogProfile: (typeof dogProfiles)[number] | null;
+    user: UserProfile;
+    timestamp: number;
+  };
+  type BadgeFeedEntry = {
+    kind: "badge";
+    unlock: BadgeUnlock;
+    user: UserProfile;
+    timestamp: number;
+  };
+  type FeedEntry = ScanFeedEntry | BadgeFeedEntry;
+
+  const feed = useMemo<FeedEntry[]>(() => {
+    const rows: FeedEntry[] = [];
     for (const scan of feedSourceScans) {
       if (!scan.breedId || scan.isPrivate) continue;
       const breed = breeds.find((b) => b.id === scan.breedId);
       if (!breed) continue;
       rows.push({
+        kind: "scan",
         scan,
         breed,
         dogProfile: dogProfiles.find((dog) => dog.id === scan.dogProfileId) ?? null,
         user: resolveFeedUser(scan.userId, currentUser, friends, knownUsers),
+        timestamp: new Date(scan.scannedAt).getTime(),
       });
     }
+    for (const unlock of feedSourceBadgeUnlocks) {
+      rows.push({
+        kind: "badge",
+        unlock,
+        user: resolveFeedUser(unlock.userId, currentUser, friends, knownUsers),
+        timestamp: new Date(unlock.unlockedAt).getTime(),
+      });
+    }
+    rows.sort((a, b) => b.timestamp - a.timestamp);
     return rows;
-  }, [breeds, currentUser, dogProfiles, feedSourceScans, friends, knownUsers]);
+  }, [
+    breeds,
+    currentUser,
+    dogProfiles,
+    feedSourceBadgeUnlocks,
+    feedSourceScans,
+    friends,
+    knownUsers,
+  ]);
 
   const thumbStyle = useAnimatedStyle(() => {
     const pad = 4;
@@ -332,7 +373,68 @@ export function SocialScreen() {
             </Text>
           </View>
         ) : (
-          feed.map(({ scan, breed, dogProfile, user }) => (
+          feed.map((entry) => {
+            if (entry.kind === "badge") {
+              const accent = badgeColors[entry.unlock.badge];
+              const copy = badgeCopy[entry.unlock.badge];
+              return (
+                <View
+                  key={`badge-${entry.unlock.id}`}
+                  className="mb-4 flex-row items-center gap-3 rounded-3xl border px-4 py-3"
+                  style={{
+                    backgroundColor: `${accent}10`,
+                    borderColor: `${accent}55`,
+                  }}
+                >
+                  <Pressable
+                    onPress={() =>
+                      openUserProfileNavigate(navigation, currentUser.id, entry.user.id)
+                    }
+                    accessibilityRole="link"
+                    accessibilityLabel={`Open ${entry.user.username}'s profile`}
+                  >
+                    <UserAvatar
+                      username={entry.user.username}
+                      avatarUrl={entry.user.avatarUrl}
+                      size={40}
+                    />
+                  </Pressable>
+                  <View
+                    className="items-center justify-center rounded-2xl"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      backgroundColor: `${accent}22`,
+                      borderWidth: 2,
+                      borderColor: accent,
+                    }}
+                  >
+                    <MaterialCommunityIcons name="trophy-variant" size={20} color={accent} />
+                  </View>
+                  <View className="min-w-0 flex-1">
+                    <Text className="text-sm text-black dark:text-white" numberOfLines={2}>
+                      <Text className="font-semibold">{entry.user.username}</Text>
+                      <Text className="text-zinc-600 dark:text-zinc-400">{" earned the "}</Text>
+                      <Text className="font-semibold" style={{ color: accent }}>
+                        {copy.label}
+                      </Text>
+                      <Text className="text-zinc-600 dark:text-zinc-400">{" badge"}</Text>
+                    </Text>
+                    <Text className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      {new Date(entry.unlock.unlockedAt).toLocaleString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }
+
+            const { scan, breed, dogProfile, user } = entry;
+            return (
             <View
               key={scan.id}
               className="mb-4 overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-sm dark:border-border dark:bg-card dark:shadow-none"
@@ -432,7 +534,8 @@ export function SocialScreen() {
                 <FeedPostSocialBar scanId={scan.id} />
               </View>
             </View>
-          ))
+            );
+          })
         )}
       </View>
       <SpotPhotoEditorModal

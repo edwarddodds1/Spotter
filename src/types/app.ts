@@ -185,3 +185,11 @@ export interface AppNotification {
   readAt: string | null;
   createdAt: string;
 }
+
+/** Server-persisted record of one user unlocking one badge. Drives feed cards. */
+export interface BadgeUnlock {
+  id: string;
+  userId: string;
+  badge: BadgeType;
+  unlockedAt: string;
+}
