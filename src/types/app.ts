@@ -171,3 +171,17 @@ export interface FeedComment {
   body: string;
   createdAt: string;
 }
+
+export type NotificationKind = "friend_request" | "friend_request_accepted";
+
+/** In-app notification row owned by `user_id` (the recipient). */
+export interface AppNotification {
+  id: string;
+  userId: string;
+  kind: NotificationKind;
+  /** Who triggered the event (may be null if the user was deleted). */
+  actor: UserProfile | null;
+  /** ISO timestamp the recipient marked it read, or null if still unread. */
+  readAt: string | null;
+  createdAt: string;
+}

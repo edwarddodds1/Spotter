@@ -13,6 +13,7 @@ import { breedsCatalog, RARITY_POINTS } from "@/constants/breeds";
 import { variantThresholds } from "@/constants/theme";
 import { endsAtForDuration, generateUniqueInviteCode } from "@/constants/leagues";
 import type {
+  AppNotification,
   BadgeType,
   Breed,
   CreateLeagueInput,
@@ -103,6 +104,8 @@ export interface SpotterState {
    * without per-row lookups.
    */
   knownUsers: UserProfile[];
+  /** Most recent in-app notifications for the signed-in user (server source of truth). */
+  notifications: AppNotification[];
   leagues: League[];
   feedReactions: FeedReaction[];
   feedComments: FeedComment[];
@@ -227,6 +230,10 @@ export interface SpotterState {
   promoteIncomingRequestToFriend: (fromUserId: string) => void;
   /** Remove a friend from the accepted list (after a successful unfriend). */
   removeFriendById: (otherUserId: string) => void;
+  /** Replace the in-app notifications list with the latest server snapshot. */
+  setNotificationsFromServer: (notifications: AppNotification[]) => void;
+  /** Mark every notification as read locally (after server confirmation). */
+  markAllNotificationsRead: () => void;
   createLeague: (input: CreateLeagueInput) => void;
   setThemeMode: (mode: "light" | "dark") => void;
   toggleFeedReaction: (scanId: string, kind: FeedReactionKind) => void;
@@ -568,6 +575,7 @@ export const useSpotterStore = create<SpotterState>()(
   pendingFriendRequests: [],
   outgoingFriendRequests: [],
   knownUsers: [],
+  notifications: [],
   leagues: [],
   feedReactions: [],
   feedComments: [],
@@ -1070,6 +1078,7 @@ export const useSpotterStore = create<SpotterState>()(
         pendingFriendRequests: scrubSocial ? [] : state.pendingFriendRequests,
         outgoingFriendRequests: scrubSocial ? [] : state.outgoingFriendRequests,
         knownUsers: scrubSocial ? [] : state.knownUsers,
+        notifications: scrubSocial ? [] : state.notifications,
         leagues: scrubSocial ? [] : state.leagues,
         feedReactions: scrubSocial ? [] : state.feedReactions,
         feedComments: scrubSocial ? [] : state.feedComments,
@@ -1153,6 +1162,15 @@ export const useSpotterStore = create<SpotterState>()(
     set((state) => ({
       friends: state.friends.filter((f) => f.id !== otherUserId),
     })),
+  setNotificationsFromServer: (notifications) => set(() => ({ notifications })),
+  markAllNotificationsRead: () =>
+    set((state) => {
+      if (state.notifications.every((n) => n.readAt !== null)) return state;
+      const now = new Date().toISOString();
+      return {
+        notifications: state.notifications.map((n) => (n.readAt ? n : { ...n, readAt: now })),
+      };
+    }),
   addLeagueFriendRequest: (username) =>
     set((state) => {
       const trimmed = username.trim();

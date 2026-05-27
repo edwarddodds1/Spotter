@@ -20,6 +20,7 @@ import { SettingsScreen } from "@/features/profile/SettingsScreen";
 import { SocialScreen } from "@/features/social/SocialScreen";
 import { DogProfileScreen } from "@/features/social/DogProfileScreen";
 import { FriendsScreen } from "@/features/social/FriendsScreen";
+import { NotificationsScreen } from "@/features/social/NotificationsScreen";
 import { TopDogsScreen } from "@/features/social/TopDogsScreen";
 import { UserProfileScreen } from "@/features/social/UserProfileScreen";
 import { AdminBreedEditorScreen } from "@/features/admin/AdminBreedEditorScreen";
@@ -40,7 +41,9 @@ function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
   const { width } = useLayoutWindowDimensions();
   const compactTabs = width < 380;
   const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
-  const hasSocialNotification = pendingFriendRequests.length > 0;
+  const notifications = useSpotterStore((state) => state.notifications);
+  const hasUnreadNotification = notifications.some((n) => n.readAt === null);
+  const hasSocialNotification = pendingFriendRequests.length > 0 || hasUnreadNotification;
   const iconByRoute: Record<keyof TabParamList, keyof typeof MaterialCommunityIcons.glyphMap> = {
     DogdexTab: "dog",
     SocialTab: "account-group",
@@ -256,6 +259,7 @@ export function AppNavigator() {
           <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: "Friends" }} />
           <Stack.Screen name="DogProfile" component={DogProfileScreen} options={{ title: "Dog Profile" }} />
           <Stack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "Profile" }} />
+          <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />
           <Stack.Screen name="TopDogs" component={TopDogsScreen} options={{ title: "Top Dogs" }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />
           <Stack.Screen name="Privacy" component={PrivacyScreen} options={{ title: "Privacy" }} />

@@ -18,6 +18,7 @@ import { deleteSpot, replaceScanPhoto } from "@/features/spot/spotService";
 import { shareScanCard } from "@/features/social/shareScanCard";
 import { PILOT_FRIENDS_ENABLED } from "@/lib/pilotFeatures";
 import { resolveScanPhotoDisplayUrl } from "@/lib/supabase/scanPhotoUrl";
+import { refreshNotifications } from "@/lib/syncNotifications";
 import { refreshPublicScans } from "@/lib/syncPublicScans";
 import { getStartOfCurrentWeek } from "@/lib/utils/dates";
 import { palette } from "@/constants/theme";
@@ -58,6 +59,8 @@ export function SocialScreen() {
   const friends = useSpotterStore((state) => state.friends);
   const knownUsers = useSpotterStore((state) => state.knownUsers);
   const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
+  const notifications = useSpotterStore((state) => state.notifications);
+  const hasUnreadNotifications = notifications.some((n) => n.readAt === null);
 
   const [feedMode, setFeedMode] = useState<FeedMode>("public");
   const [editingScanId, setEditingScanId] = useState<string | null>(null);
@@ -136,6 +139,7 @@ export function SocialScreen() {
   useFocusEffect(
     useCallback(() => {
       void refreshPublicScans();
+      void refreshNotifications();
     }, []),
   );
 
@@ -180,14 +184,30 @@ export function SocialScreen() {
     <ScrollView className="flex-1 bg-zinc-50 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
       <View className="flex-row items-center justify-between gap-3 px-4 pt-8">
         <Text className="text-4xl font-black text-black dark:text-white">Social</Text>
-        <Pressable
-          onPress={() => navigation.navigate("Friends")}
-          className="flex-row items-center gap-1.5 rounded-full bg-zinc-100 px-3.5 py-2 dark:bg-zinc-900"
-        >
-          <MaterialCommunityIcons name="account-group-outline" size={18} color={palette.amber} />
-          <Text className="text-sm font-semibold text-black dark:text-white">Friends</Text>
-          {pendingFriendRequests.length > 0 ? <View className="h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <Pressable
+            onPress={() => navigation.navigate("Notifications")}
+            className="relative rounded-full bg-zinc-100 p-2.5 dark:bg-zinc-900"
+            accessibilityRole="button"
+            accessibilityLabel="Open notifications"
+          >
+            <MaterialCommunityIcons name="bell-outline" size={20} color={palette.amber} />
+            {hasUnreadNotifications ? (
+              <View
+                className="absolute h-2.5 w-2.5 rounded-full bg-red-500"
+                style={{ top: 6, right: 6 }}
+              />
+            ) : null}
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("Friends")}
+            className="flex-row items-center gap-1.5 rounded-full bg-zinc-100 px-3.5 py-2 dark:bg-zinc-900"
+          >
+            <MaterialCommunityIcons name="account-group-outline" size={18} color={palette.amber} />
+            <Text className="text-sm font-semibold text-black dark:text-white">Friends</Text>
+            {pendingFriendRequests.length > 0 ? <View className="h-2.5 w-2.5 rounded-full bg-red-500" /> : null}
+          </Pressable>
+        </View>
       </View>
 
       <View className="px-4 pb-6 pt-4">

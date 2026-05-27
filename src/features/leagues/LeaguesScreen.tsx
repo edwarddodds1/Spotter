@@ -187,9 +187,6 @@ function LeaguesScreenContent() {
   return (
     <ScrollView className="flex-1 bg-white px-4 pt-8 dark:bg-ink">
       <Text className="text-4xl font-black text-black dark:text-white">Leagues</Text>
-      <Text className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-        Weekly leaderboards reset every Monday at 00:00 AEST. Friends leagues can cap members and end on a set date.
-      </Text>
 
       <View className="mt-5 flex-row rounded-full bg-zinc-100 p-1 dark:bg-card">
         {tabs.map((tab) => (
@@ -210,7 +207,7 @@ function LeaguesScreenContent() {
           <View className="rounded-3xl border border-zinc-200 bg-white p-4 dark:border-border dark:bg-card">
             <Text className="text-lg font-semibold text-black dark:text-white">Create a friends league</Text>
             <Text className="mt-1 text-sm leading-5 text-zinc-600 dark:text-zinc-400">
-              Set capacity and how long the season runs. Everyone joins with the invite link or code.
+              Everyone joins with the invite link or code.
             </Text>
 
             <Text className="mt-4 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Name</Text>

@@ -8,6 +8,7 @@ export type RootStackParamList = {
   EditScan: { scanId: string };
   LeagueDetail: { leagueId: string; leagueName: string; memberCount: number; maxMembers: number };
   Friends: undefined;
+  Notifications: undefined;
   DogProfile: { dogProfileId: string };
   UserProfile: { userId: string };
   TopDogs: undefined;
