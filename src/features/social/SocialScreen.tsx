@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
-import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useCallback } from "react";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { AppMark } from "@/components/AppMark";
@@ -17,6 +18,7 @@ import { deleteSpot, replaceScanPhoto } from "@/features/spot/spotService";
 import { shareScanCard } from "@/features/social/shareScanCard";
 import { PILOT_FRIENDS_ENABLED } from "@/lib/pilotFeatures";
 import { resolveScanPhotoDisplayUrl } from "@/lib/supabase/scanPhotoUrl";
+import { refreshPublicScans } from "@/lib/syncPublicScans";
 import { getStartOfCurrentWeek } from "@/lib/utils/dates";
 import { palette } from "@/constants/theme";
 import { useSpotterStore } from "@/store/useSpotterStore";
@@ -26,10 +28,16 @@ const rankAccent = ["#f59e0b", "#94a3b8", "#b45309"];
 
 type FeedMode = "public" | "friends";
 
-function resolveFeedUser(scanUserId: string, currentUser: UserProfile, friends: UserProfile[]): UserProfile {
+function resolveFeedUser(
+  scanUserId: string,
+  currentUser: UserProfile,
+  friends: UserProfile[],
+  knownUsers: UserProfile[],
+): UserProfile {
   if (scanUserId === currentUser.id) return currentUser;
   return (
-    friends.find((f) => f.id === scanUserId) ?? {
+    friends.find((f) => f.id === scanUserId) ??
+    knownUsers.find((u) => u.id === scanUserId) ?? {
       id: scanUserId,
       username: "Spotter",
       avatarUrl: null,
@@ -48,6 +56,7 @@ export function SocialScreen() {
   const dogProfiles = useSpotterStore((state) => state.dogProfiles);
   const currentUser = useSpotterStore((state) => state.currentUser);
   const friends = useSpotterStore((state) => state.friends);
+  const knownUsers = useSpotterStore((state) => state.knownUsers);
   const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
 
   const [feedMode, setFeedMode] = useState<FeedMode>("public");
@@ -124,12 +133,18 @@ export function SocialScreen() {
 
   const friendIds = useMemo(() => new Set(friends.map((f) => f.id)), [friends]);
 
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPublicScans();
+    }, []),
+  );
+
   const feedSourceScans = useMemo(() => {
     if (feedMode === "public") {
-      return allScans.filter((s) => s.userId === currentUser.id && !s.isPendingBreed);
+      return allScans.filter((s) => !s.isPendingBreed && !s.isPrivate);
     }
     return allScans.filter((s) => friendIds.has(s.userId) && !s.isPendingBreed);
-  }, [allScans, currentUser.id, feedMode, friendIds]);
+  }, [allScans, feedMode, friendIds]);
 
   const feed = useMemo(() => {
     const rows: {
@@ -146,11 +161,11 @@ export function SocialScreen() {
         scan,
         breed,
         dogProfile: dogProfiles.find((dog) => dog.id === scan.dogProfileId) ?? null,
-        user: resolveFeedUser(scan.userId, currentUser, friends),
+        user: resolveFeedUser(scan.userId, currentUser, friends, knownUsers),
       });
     }
     return rows;
-  }, [breeds, currentUser, dogProfiles, feedSourceScans, friends]);
+  }, [breeds, currentUser, dogProfiles, feedSourceScans, friends, knownUsers]);
 
   const thumbStyle = useAnimatedStyle(() => {
     const pad = 4;
@@ -234,7 +249,7 @@ export function SocialScreen() {
         <View className="mb-3 flex-row items-baseline justify-between">
           <Text className="text-lg font-bold text-black dark:text-white">Recent spots</Text>
           <Text className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-            {feed.length} {feedMode === "public" ? "public" : "from friends"}
+            {feed.length} {feedMode === "public" ? "from everyone" : "from friends"}
           </Text>
         </View>
 
@@ -288,14 +303,12 @@ export function SocialScreen() {
             <AppMark size={44} style={{ opacity: 0.85 }} />
             <Text className="mt-3 text-center text-sm font-medium text-zinc-600 dark:text-zinc-400">
               {feedMode === "public"
-                ? scans.some((s) => s.breedId && !s.isPendingBreed && s.isPrivate)
-                  ? "All your recent spots are private — turn off “Keep private” when saving, or change privacy in Profile."
-                  : "No scans to show yet. Open Spot and log your first breed!"
+                ? "No public spots yet. Open Spot to log a breed and start the feed."
                 : !PILOT_FRIENDS_ENABLED
-                  ? "Friends feed is coming soon. Use Public to browse your own public spots for now."
+                  ? "Friends feed is coming soon. Switch to Public to see everyone's spots."
                   : friends.length === 0
                     ? "Add friends from the Friends button above to see their public spots here."
-                    : "When your friends share public spots, they’ll show up here."}
+                    : "When your friends share public spots, they'll show up here."}
             </Text>
           </View>
         ) : (

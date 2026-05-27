@@ -97,6 +97,12 @@ export interface SpotterState {
   pendingFriendRequests: UserProfile[];
   /** Friend requests I have sent, still awaiting the other side's accept. */
   outgoingFriendRequests: UserProfile[];
+  /**
+   * Public-feed authors who aren't the current user or a friend. Hydrated by
+   * `applyPublicScansFromRemote` so the feed can render usernames/avatars
+   * without per-row lookups.
+   */
+  knownUsers: UserProfile[];
   leagues: League[];
   feedReactions: FeedReaction[];
   feedComments: FeedComment[];
@@ -176,6 +182,17 @@ export interface SpotterState {
     friendUserIds: string[];
     scans: ScanRecord[];
     dogProfiles: DogProfile[];
+  }) => void;
+  /**
+   * Additively merge a server snapshot of public-feed scans + the public
+   * profiles of their authors. Existing rows (self / friends / already cached
+   * public) are upserted by id; nothing is dropped. Author profiles for
+   * non-self / non-friend users are written into `knownUsers`.
+   */
+  applyPublicScansFromRemote: (input: {
+    scans: ScanRecord[];
+    dogProfiles: DogProfile[];
+    users: UserProfile[];
   }) => void;
   bumpPhotoVersion: (scanId: string) => void;
   /** Load built-in demo friends, leagues, and sample scans (demo mode only). */
@@ -550,6 +567,7 @@ export const useSpotterStore = create<SpotterState>()(
   friends: [],
   pendingFriendRequests: [],
   outgoingFriendRequests: [],
+  knownUsers: [],
   leagues: [],
   feedReactions: [],
   feedComments: [],
@@ -917,6 +935,38 @@ export const useSpotterStore = create<SpotterState>()(
         currentUser: { ...state.currentUser, totalScans: userScanCount },
       };
     }),
+  applyPublicScansFromRemote: ({ scans, dogProfiles, users }) =>
+    set((state) => {
+      const byId = new Map(state.scans.map((s) => [s.id, s] as const));
+      for (const incoming of scans) {
+        byId.set(incoming.id, incoming);
+      }
+      const nextScans = Array.from(byId.values()).sort(
+        (a, b) => new Date(b.scannedAt).getTime() - new Date(a.scannedAt).getTime(),
+      );
+
+      const dogProfileMap = new Map(state.dogProfiles.map((d) => [d.id, d] as const));
+      for (const dog of dogProfiles) dogProfileMap.set(dog.id, dog);
+
+      const friendIds = new Set(state.friends.map((f) => f.id));
+      const knownById = new Map(state.knownUsers.map((u) => [u.id, u] as const));
+      for (const author of users) {
+        if (!author?.id) continue;
+        if (author.id === state.currentUser.id) continue;
+        if (friendIds.has(author.id)) continue;
+        const existing = knownById.get(author.id);
+        knownById.set(author.id, {
+          ...(existing ?? { city: "", country: "" }),
+          ...author,
+        });
+      }
+
+      return {
+        scans: nextScans,
+        dogProfiles: Array.from(dogProfileMap.values()),
+        knownUsers: Array.from(knownById.values()),
+      };
+    }),
   applyFriendsScansFromRemote: ({ friendUserIds, scans, dogProfiles }) =>
     set((state) => {
       const friendIdSet = new Set(friendUserIds);
@@ -1019,6 +1069,7 @@ export const useSpotterStore = create<SpotterState>()(
         friends: scrubSocial ? [] : state.friends,
         pendingFriendRequests: scrubSocial ? [] : state.pendingFriendRequests,
         outgoingFriendRequests: scrubSocial ? [] : state.outgoingFriendRequests,
+        knownUsers: scrubSocial ? [] : state.knownUsers,
         leagues: scrubSocial ? [] : state.leagues,
         feedReactions: scrubSocial ? [] : state.feedReactions,
         feedComments: scrubSocial ? [] : state.feedComments,

@@ -174,6 +174,72 @@ export async function fetchFriendsScansFromSupabase(
 }
 
 /**
+ * Pull the most recent non-private, non-pending scans from any author so the
+ * public feed can show everyone's spots. RLS (`scans_select_public_non_private`)
+ * gates this, so private/pending rows can't leak even if the query were wrong.
+ *
+ * Returns scans, the dog_profiles they reference, and the public user rows for
+ * their authors (so the feed can render usernames + avatars without a second
+ * round trip).
+ */
+export async function fetchPublicScansFromSupabase(
+  limit = 80,
+): Promise<{
+  scans: ScanRecord[];
+  dogProfiles: DogProfile[];
+  users: Array<{ id: string; username: string; avatarUrl: string | null; totalScans: number; createdAt: string }>;
+} | null> {
+  if (!isSupabaseConfigured) return null;
+
+  const { data: scanRows, error: scanError } = await supabaseDb
+    .from("scans")
+    .select("*")
+    .eq("is_private", false)
+    .eq("is_pending_breed", false)
+    .order("scanned_at", { ascending: false })
+    .limit(limit);
+
+  if (scanError) {
+    console.warn("[fetchPublicScansFromSupabase]", scanError.message);
+    return null;
+  }
+
+  const scans = ((scanRows ?? []) as ScanRow[]).map(rowToScan);
+
+  const userIds = Array.from(new Set(scans.map((s) => s.userId).filter(Boolean)));
+  const dogProfileIds = Array.from(
+    new Set(scans.map((s) => s.dogProfileId).filter((id): id is string => Boolean(id))),
+  );
+
+  let users: Array<{ id: string; username: string; avatarUrl: string | null; totalScans: number; createdAt: string }> = [];
+  if (userIds.length > 0) {
+    const { data: userRows } = await supabaseDb
+      .from("users")
+      .select("id, username, avatar_url, total_scans, created_at")
+      .in("id", userIds);
+    if (userRows) {
+      users = (userRows as Array<{ id: string; username: string; avatar_url: string | null; total_scans: number; created_at: string }>).map((r) => ({
+        id: r.id,
+        username: r.username,
+        avatarUrl: r.avatar_url ?? null,
+        totalScans: r.total_scans ?? 0,
+        createdAt: r.created_at,
+      }));
+    }
+  }
+
+  let dogProfiles: DogProfile[] = [];
+  if (dogProfileIds.length > 0) {
+    const { data: dogRows } = await supabaseDb.from("dog_profiles").select("*").in("id", dogProfileIds);
+    if (dogRows) {
+      dogProfiles = (dogRows as DogProfileRow[]).map(rowToDogProfile);
+    }
+  }
+
+  return { scans, dogProfiles, users };
+}
+
+/**
  * Pushes local-only scans to Supabase (fixes legacy non-UUID ids and failed uploads).
  * Returns the full scans array with any id/photo_url updates applied.
  */

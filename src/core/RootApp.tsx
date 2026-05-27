@@ -16,6 +16,7 @@ import { fetchFriendshipsForUser } from "@/lib/supabase/friendshipsRemote";
 import { recoverWebSessionFromUrl } from "@/lib/supabase/recoverSessionFromUrl";
 import { ensureUserProfile } from "@/lib/supabase/profile";
 import { refreshFriendsScans } from "@/lib/syncFriendScans";
+import { refreshPublicScans } from "@/lib/syncPublicScans";
 import { pullAndSyncUserScans } from "@/lib/syncUserScans";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSpotterStore, waitForSpotterStoreHydration } from "@/store/useSpotterStore";
@@ -219,6 +220,11 @@ function RootAppInner() {
         await refreshFriendsScans();
       } catch (err) {
         console.warn("[RootApp] Could not load friends' scans:", err);
+      }
+      try {
+        await refreshPublicScans();
+      } catch (err) {
+        console.warn("[RootApp] Could not load public scans:", err);
       }
     };
     void run();
