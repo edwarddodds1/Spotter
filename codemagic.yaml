@@ -6,9 +6,9 @@
 # ───────────────────────────────────────────────────────────────────────────
 # ONE-TIME SETUP IN THE CODEMAGIC UI (cannot be done from this repo):
 #
-# 1. App Store Connect API key (added in Codemagic as "Codemagic_Spotter")
-#    Codemagic → Teams/User settings → Integrations → App Store Connect → add key.
-#    Referenced below under `integrations.app_store_connect`.
+# 1. App Store Connect API key (added in Codemagic as "AppStoreConnect")
+#    Codemagic → User settings → Integrations → App Store Connect → Manage keys.
+#    The Codemagic-side key name must match `integrations.app_store_connect` below.
 #
 # 2. Environment variable group "supabase" (Codemagic → Environment variables):
 #    - Supabase_URL                 = https://<your-ref>.supabase.co
@@ -38,7 +38,7 @@ workflows:
           source: true
 
     integrations:
-      app_store_connect: Codemagic_Spotter
+      app_store_connect: AppStoreConnect
 
     environment:
       groups:
