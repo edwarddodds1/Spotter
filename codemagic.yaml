@@ -16,11 +16,12 @@
 #    - Supabase_Publishable_Key     = sb_publishable_...
 #    Add them to a group called "supabase" and mark the key as secure.
 #
-# 3. APP_STORE_APPLE_ID (in the "appstore" group below): the numeric Apple ID
-#    of the app from App Store Connect → App Information → "Apple ID".
-#    Used to auto-increment the build number from the latest TestFlight build.
-#    Leave empty until the app record exists; the build falls back to
-#    Codemagic's $BUILD_NUMBER.
+# 3. APP_STORE_APPLE_ID (in the "appstore" group): numeric Apple ID from
+#    App Store Connect → App Information → "Apple ID" (auto-increments build #).
+#
+# Signing: this workflow fetches/creates the Distribution cert + App Store
+# profile from Apple on each build (no manual upload). Optional later: add
+# CERTIFICATE_PRIVATE_KEY to a "code-signing" group to reuse the same cert.
 # ───────────────────────────────────────────────────────────────────────────
 
 workflows:
@@ -42,12 +43,10 @@ workflows:
       app_store_connect: AppStoreConnect
 
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.spotter.dog
       groups:
         - supabase   # Supabase_URL, Supabase_Publishable_Key
         - appstore   # APP_STORE_APPLE_ID (numeric Apple app id)
+        # Optional: code-signing group with CERTIFICATE_PRIVATE_KEY to reuse cert
       vars:
         XCODE_WORKSPACE: "Spotter.xcworkspace"
         XCODE_SCHEME: "Spotter"
@@ -71,7 +70,19 @@ workflows:
       - name: Generate native iOS project (expo prebuild)
         script: npx expo prebuild --platform ios --clean
 
-      - name: Set up code signing profiles
+      - name: Set up keychain for code signing
+        script: keychain initialize
+
+      - name: Fetch or create Distribution cert and App Store profile
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+
+      - name: Add certificates to keychain
+        script: keychain add-certificates
+
+      - name: Set up code signing on Xcode project
         script: xcode-project use-profiles
 
       - name: Set build number from latest TestFlight build
