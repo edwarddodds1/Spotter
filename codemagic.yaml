@@ -6,21 +6,25 @@
 # ───────────────────────────────────────────────────────────────────────────
 # ONE-TIME SETUP IN THE CODEMAGIC UI (cannot be done from this repo):
 #
-# 1. App Store Connect API key (added in Codemagic as "AppStoreConnect")
-#    Codemagic → User settings → Integrations → App Store Connect → Manage keys.
-#    The Codemagic-side key name must match `integrations.app_store_connect` below.
+# 1. App Store Connect API key — via ENVIRONMENT VARIABLES (no integration).
+#    Create the .p8 key in App Store Connect → Users and Access → Integrations,
+#    then add these to a Codemagic env var group named "appstore_connect"
+#    (Codemagic → app → Settings → Environment variables). Mark each Secure:
+#      - APP_STORE_CONNECT_ISSUER_ID      = the Issuer ID (UUID)
+#      - APP_STORE_CONNECT_KEY_IDENTIFIER = the Key ID (e.g. 2X9R4HXF34)
+#      - APP_STORE_CONNECT_PRIVATE_KEY    = full contents of the .p8 file,
+#          including the -----BEGIN/END PRIVATE KEY----- lines
+#    The Codemagic CLI auto-detects these names for signing + publishing.
 #
-# 2. Environment variable group "supabase" (Codemagic → Environment variables):
+# 2. Environment variable group "supabase":
 #    - Supabase_URL                 = https://<your-ref>.supabase.co
-#    - Supabase_Publishable_Key     = sb_publishable_...
-#    Add them to a group called "supabase" and mark the key as secure.
+#    - Supabase_Publishable_Key     = sb_publishable_...   (mark Secure)
 #
 # 3. APP_STORE_APPLE_ID (in the "appstore" group): numeric Apple ID from
 #    App Store Connect → App Information → "Apple ID" (auto-increments build #).
 #
 # Signing: this workflow fetches/creates the Distribution cert + App Store
-# profile from Apple on each build (no manual upload). Optional later: add
-# CERTIFICATE_PRIVATE_KEY to a "code-signing" group to reuse the same cert.
+# profile from Apple on each build (no manual upload).
 # ───────────────────────────────────────────────────────────────────────────
 
 workflows:
@@ -37,14 +41,11 @@ workflows:
           include: true
           source: true
 
-    integrations:
-      app_store_connect: AppStoreConnect
-
     environment:
       groups:
-        - supabase   # Supabase_URL, Supabase_Publishable_Key
-        - appstore   # APP_STORE_APPLE_ID (numeric Apple app id)
-        # Optional: code-signing group with CERTIFICATE_PRIVATE_KEY to reuse cert
+        - appstore_connect  # APP_STORE_CONNECT_ISSUER_ID / _KEY_IDENTIFIER / _PRIVATE_KEY
+        - supabase          # Supabase_URL, Supabase_Publishable_Key
+        - appstore          # APP_STORE_APPLE_ID (numeric Apple app id)
       vars:
         XCODE_WORKSPACE: "Spotter.xcworkspace"
         XCODE_SCHEME: "Spotter"
@@ -112,5 +113,7 @@ workflows:
 
     publishing:
       app_store_connect:
-        auth: integration
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
