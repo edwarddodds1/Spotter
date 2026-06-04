@@ -11,6 +11,11 @@ export function invalidateScansSignedUrl(objectPath: string) {
   signedUrlCache.delete(objectPath);
 }
 
+/** Drop every cached signed URL. Safe to call after explicit auth changes. */
+export function invalidateAllScansSignedUrls() {
+  signedUrlCache.clear();
+}
+
 /** Extract `userId/file.jpg` from a Supabase scans URL or bare storage path. */
 export function parseScansStoragePath(photoUrl: string): string | null {
   const trimmed = photoUrl.trim();
@@ -46,50 +51,28 @@ function isLocalOrExternalPhotoUrl(photoUrl: string): boolean {
  * Returns a URI the Image component can load. Private `scans` bucket objects need a
  * short-lived signed URL; public CDN / local URIs pass through unchanged.
  *
- * On sign failure for a recognized storage path we return `""` rather than the
- * original URL — the original may be a legacy public-bucket URL that no longer
- * works on the now-private bucket, so falling back to it just paints a broken
- * image. Callers treat `""` as "show retry".
+ * On sign failure for a recognized storage path we return `null` so callers can
+ * distinguish "still working on it / try again" from a definitive success.
  */
-export async function resolveScanPhotoDisplayUrl(photoUrl: string): Promise<string> {
+export async function resolveScanPhotoDisplayUrl(photoUrl: string): Promise<string | null> {
   const trimmed = photoUrl?.trim() ?? "";
   if (!trimmed) return trimmed;
   if (isLocalOrExternalPhotoUrl(trimmed)) return trimmed;
 
   const objectPath = parseScansStoragePath(trimmed);
-  if (!objectPath || !isSupabaseConfigured) return trimmed;
+  if (!objectPath) return trimmed;
+  if (!isSupabaseConfigured) return null;
 
   const cached = signedUrlCache.get(objectPath);
   if (cached && cached.expiresAt > Date.now()) return cached.url;
 
-  const signOnce = async () =>
-    supabase.storage.from(SCANS_BUCKET).createSignedUrl(objectPath, SIGNED_URL_TTL_SEC);
-
-  let { data, error } = await signOnce();
-
-  /**
-   * Web can occasionally hold a stale access token until refresh resolves.
-   * If signing fails once, try a best-effort refresh + one retry before we
-   * report failure to the UI.
-   */
-  if (error || !data?.signedUrl) {
-    try {
-      await supabase.auth.refreshSession();
-      const retried = await signOnce();
-      data = retried.data;
-      error = retried.error;
-    } catch {
-      // noop: keep original error path below
-    }
-  }
+  const { data, error } = await supabase.storage
+    .from(SCANS_BUCKET)
+    .createSignedUrl(objectPath, SIGNED_URL_TTL_SEC);
 
   if (error || !data?.signedUrl) {
-    console.warn(
-      "[resolveScanPhotoDisplayUrl] sign failed",
-      objectPath,
-      error?.message ?? "missing signed URL",
-    );
-    return "";
+    if (error) console.warn("[resolveScanPhotoDisplayUrl] sign failed", objectPath, error.message);
+    return null;
   }
 
   signedUrlCache.set(objectPath, {

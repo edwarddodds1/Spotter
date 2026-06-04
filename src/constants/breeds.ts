@@ -21,7 +21,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Friendly, Intelligent, Affectionate",
     size: "Small",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/3/33/F1_Red_Toy_Cavoodle_Puppy.jpg",
   },
   {
     id: "labrador-retriever",
@@ -35,7 +35,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Friendly, Energetic, Loyal",
     size: "Large",
     lifespan: "10–14 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/3/34/Labrador_on_Quantock_%282175262184%29.jpg",
   },
   {
     id: "golden-retriever",
@@ -49,7 +49,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Friendly, Patient, Intelligent",
     size: "Large",
     lifespan: "10–12 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/bd/Golden_Retriever_Dukedestiny01_drvd.jpg",
   },
   {
     id: "french-bulldog",
@@ -63,7 +63,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Playful, Adaptable, Affectionate",
     size: "Small",
     lifespan: "10–12 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/1/18/2008-07-28_Dog_at_Frolick_Field.jpg",
   },
   {
     id: "german-shepherd",
@@ -77,7 +77,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Loyal, Courageous, Intelligent",
     size: "Large",
     lifespan: "9–13 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/d/d0/German_Shepherd_-_DSC_0346_%2810096362833%29.jpg",
   },
   {
     id: "border-collie",
@@ -91,7 +91,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Energetic, Focused, Responsive",
     size: "Medium",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/e/e4/Border_Collie_600.jpg",
   },
   {
     id: "staffordshire-bull-terrier",
@@ -105,7 +105,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Brave, Affectionate, Energetic",
     size: "Medium",
     lifespan: "12–14 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/d/de/%D7%A1%D7%90%D7%98%D7%A3_%D7%90%D7%A0%D7%92%D7%9C%D7%99.jpg",
   },
   {
     id: "groodle",
@@ -119,7 +119,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Social, Intelligent, Gentle",
     size: "Large",
     lifespan: "10–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/f/f2/Golden_Doodle_Standing_%28HD%29.jpg",
   },
   {
     id: "miniature-dachshund",
@@ -133,7 +133,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Bold, Curious, Clever",
     size: "Small",
     lifespan: "12–16 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/be/%EB%8B%A5%EC%8A%A4%ED%9B%88%ED%8A%B8%28%EB%8B%A8%EB%AA%A8%EC%A2%85%29_%28Dachshund_%28Short%29%29.jpg",
   },
   {
     id: "cavalier-king-charles-spaniel",
@@ -147,7 +147,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Gentle, Affectionate, Adaptable",
     size: "Small",
     lifespan: "10–14 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5f/CarterBIS.Tiki.13.6.09.jpg",
   },
   {
     id: "labradoodle",
@@ -161,7 +161,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Outgoing, Intelligent, Social",
     size: "Medium–Large",
     lifespan: "12–14 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/8/85/Labradoodle-Brown-Male-SideFace.jpg",
   },
   {
     id: "poodle-miniature",
@@ -175,7 +175,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Smart, Alert, Active",
     size: "Small",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/f/f8/Full_attention_%288067543690%29.jpg",
   },
   {
     id: "maltese",
@@ -189,7 +189,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Affectionate, Gentle, Playful",
     size: "Small",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/9/94/Maltese_600.jpg",
   },
   {
     id: "jack-russell-terrier",
@@ -203,7 +203,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Energetic, Clever, Bold",
     size: "Small",
     lifespan: "13–16 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/f/f1/Jack_Russell_Terrier_1.jpg",
   },
   {
     id: "shih-tzu",
@@ -217,7 +217,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Affectionate, Friendly, Outgoing",
     size: "Small",
     lifespan: "10–16 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/d/df/Shihtzu_%28cropped%29.jpg",
   },
   {
     id: "cocker-spaniel",
@@ -231,7 +231,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Affectionate, Gentle, Playful",
     size: "Medium",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/2/28/Gessa_d%27Aran_Copo_de_Nieve-_arancio_roano-_prop.Kalesa.jpg",
   },
   {
     id: "beagle",
@@ -245,7 +245,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Curious, Friendly, Energetic",
     size: "Medium",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/55/Beagle_600.jpg",
   },
   {
     id: "miniature-schnauzer",
@@ -259,7 +259,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Alert, Intelligent, Friendly",
     size: "Small",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/3/30/Miniature_Schnauzer_salt_%26_pepper_%28cropped%29.jpg",
   },
   {
     id: "spoodle",
@@ -273,7 +273,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Social, Gentle, Intelligent",
     size: "Small–Medium",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/5a/Cockapoo_apricot_standing.jpg",
   },
   {
     id: "australian-shepherd",
@@ -287,7 +287,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Energetic, Loyal, Intelligent",
     size: "Medium",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/8/80/Australian_Shepherd_red_bi.JPG",
   },
   {
     id: "pug",
@@ -301,7 +301,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Affectionate, Playful, Charming",
     size: "Small",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/f/f3/Mops-duke-mopszucht-vom-maegdebrunnen.jpg",
   },
   {
     id: "chihuahua",
@@ -315,7 +315,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Bold, Alert, Loyal",
     size: "Tiny",
     lifespan: "14–17 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/4/4c/Chihuahua1_bvdb.jpg",
   },
   {
     id: "bichon-frise",
@@ -329,7 +329,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Playful, Friendly, Affectionate",
     size: "Small",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/9/93/Bichon_Fris%C3%A9_-_studdogbichon.jpg",
   },
   {
     id: "boxer",
@@ -343,7 +343,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Energetic, Loyal, Playful",
     size: "Large",
     lifespan: "10–12 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/6f/Male_fawn_Boxer_undocked.jpg",
   },
   {
     id: "rottweiler",
@@ -357,7 +357,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Confident, Loyal, Protective",
     size: "Large",
     lifespan: "8–10 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/2/26/Rottweiler_standing_facing_left.jpg",
   },
   {
     id: "siberian-husky",
@@ -371,7 +371,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Energetic, Friendly, Independent",
     size: "Medium",
     lifespan: "12–14 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/8/8b/Husky_L.jpg",
   },
   {
     id: "whippet",
@@ -385,7 +385,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Gentle, Quiet, Athletic",
     size: "Medium",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/7/76/Whippet_2018_6.jpg",
   },
   {
     id: "west-highland-white-terrier",
@@ -399,7 +399,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Bold, Friendly, Alert",
     size: "Small",
     lifespan: "13–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/2/2c/West_Highland_White_Terrier_Krakow.jpg",
   },
   {
     id: "australian-cattle-dog",
@@ -413,7 +413,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Loyal, Energetic, Alert",
     size: "Medium",
     lifespan: "12–16 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/cc/ACD-blue-spud.jpg",
   },
   {
     id: "kelpie",
@@ -427,7 +427,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Energetic, Intelligent, Alert",
     size: "Medium",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/8/8a/Black_and_tan_Kelpie_portrait.jpg",
   },
   {
     id: "dalmatian",
@@ -441,7 +441,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Energetic, Loyal, Outgoing",
     size: "Large",
     lifespan: "11–13 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/68/Sun_Dog_Dalmatian.jpg",
   },
   {
     id: "shiba-inu",
@@ -455,7 +455,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Alert, Independent, Bold",
     size: "Small–Medium",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/6/6b/Taka_Shiba.jpg",
   },
   {
     id: "pomeranian",
@@ -469,7 +469,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Bold, Lively, Intelligent",
     size: "Tiny",
     lifespan: "12–16 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/ca/Pomeranian.JPG",
   },
   {
     id: "yorkshire-terrier",
@@ -483,7 +483,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Bold, Affectionate, Energetic",
     size: "Tiny",
     lifespan: "13–16 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/4/41/%282_version%29_Grupp_3%2C_YORKSHIRETERRIER%2C_NO_UCH_SE_UCH_Oxzar_Amazing_Bel%E2%80%99s_Toffy_%2824310212305%29.jpg",
   },
   {
     id: "bull-terrier",
@@ -497,7 +497,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Playful, Courageous, Energetic",
     size: "Medium",
     lifespan: "10–14 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/4/4c/Bullterrier-3453301920.jpg",
   },
   {
     id: "bernese-mountain-dog",
@@ -511,7 +511,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Gentle, Loyal, Calm",
     size: "Large",
     lifespan: "7–10 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/cc/3-BerneseMountainDogInGrass.jpg",
   },
   {
     id: "rhodesian-ridgeback",
@@ -525,7 +525,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Confident, Loyal, Independent",
     size: "Large",
     lifespan: "10–12 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/01/Rhodesian_ridgeback.jpg",
   },
   {
     id: "weimaraner",
@@ -539,7 +539,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Energetic, Intelligent, Affectionate",
     size: "Large",
     lifespan: "11–13 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/5/59/Weimaraner_Freika-2.jpg",
   },
   {
     id: "dobermann",
@@ -553,7 +553,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Fearless, Loyal, Intelligent",
     size: "Large",
     lifespan: "10–13 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/a/ac/Dobermann_handling.jpg",
   },
   {
     id: "great-dane",
@@ -567,7 +567,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Friendly, Gentle, Courageous",
     size: "Giant",
     lifespan: "7–10 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/e/e0/Dog_niemiecki_%C5%BC%C3%B3%C5%82ty_LM980.jpg",
   },
   {
     id: "german-shorthaired-pointer",
@@ -581,7 +581,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Energetic, Intelligent, Friendly",
     size: "Large",
     lifespan: "12–14 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/3/38/Duitse_staande_korthaar_10-10-2.jpg",
   },
   {
     id: "samoyed",
@@ -595,7 +595,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Friendly, Gentle, Social",
     size: "Large",
     lifespan: "12–14 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/1/18/Samojed00.jpg",
   },
   {
     id: "pembroke-welsh-corgi",
@@ -609,7 +609,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Playful, Intelligent, Alert",
     size: "Small",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/9/99/Welsh_Pembroke_Corgi.jpg",
   },
   {
     id: "greyhound",
@@ -623,7 +623,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Gentle, Quiet, Athletic",
     size: "Large",
     lifespan: "10–14 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/e/ef/GraceTheGreyhound.jpg",
   },
   {
     id: "basset-hound",
@@ -637,7 +637,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Gentle, Relaxed, Stubborn",
     size: "Medium",
     lifespan: "10–12 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/c/cf/BassetHound_profil.jpg",
   },
   {
     id: "vizsla",
@@ -651,7 +651,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Affectionate, Energetic, Gentle",
     size: "Large",
     lifespan: "12–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/2/2d/Wy%C5%BCe%C5%82_w%C4%99gierski_g%C5%82adkow%C5%82osy_500.jpg",
   },
   {
     id: "cane-corso",
@@ -665,7 +665,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Protective, Intelligent, Loyal",
     size: "Large",
     lifespan: "9–12 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/03/Cane_corso_temi_1_1024x768x24_%28cropped%29.png",
   },
   {
     id: "irish-wolfhound",
@@ -679,7 +679,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Gentle, Courageous, Calm",
     size: "Giant",
     lifespan: "6–8 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/d/da/%282%29_Irish_Wolfhound_4.jpg",
   },
   {
     id: "chow-chow",
@@ -693,7 +693,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Reserved, Loyal, Independent",
     size: "Medium–Large",
     lifespan: "9–15 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/0/0e/Chow-chow_in_Tallinn.JPG",
   },
   {
     id: "xoloitzcuintli",
@@ -707,7 +707,7 @@ export const breedsCatalog: Breed[] = [
     temperament: "Calm, Loyal, Intelligent",
     size: "Small–Medium",
     lifespan: "13–18 years",
-    referencePhotoUrl: null,
+    referencePhotoUrl: "https://upload.wikimedia.org/wikipedia/commons/b/bb/BIR_Grupp_5-_MEXIKANSK_NAKENHUND%2C_Lokal_Hero%E2%80%99s_King_Og_Hart%E2%80%99s_Istas_%2823607403303%29.jpg",
   },
 ];
 

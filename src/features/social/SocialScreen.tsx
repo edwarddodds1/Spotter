@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useCallback } from "react";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { AppMark } from "@/components/AppMark";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ContentActionSheet } from "@/components/ContentActionSheet";
 import { ScanPhoto } from "@/components/ScanPhoto";
 import { PointsBadge } from "@/components/PointsBadge";
 import { RarityBadge } from "@/components/RarityBadge";
@@ -16,19 +16,25 @@ import { openUserProfileNavigate } from "@/components/UsernameLink";
 import { FeedPostSocialBar } from "@/features/social/FeedPostSocialBar";
 import { deleteSpot, replaceScanPhoto } from "@/features/spot/spotService";
 import { shareScanCard } from "@/features/social/shareScanCard";
+import { notificationsForUser } from "@/lib/notifications";
 import { PILOT_FRIENDS_ENABLED } from "@/lib/pilotFeatures";
+import {
+  blockUser,
+  fetchBlockedUserIds,
+  reportContent,
+  type ReportReason,
+} from "@/lib/supabase/moderationRemote";
 import { resolveScanPhotoDisplayUrl } from "@/lib/supabase/scanPhotoUrl";
 import { refreshBadgeUnlocks } from "@/lib/syncBadgeUnlocks";
 import { refreshNotifications } from "@/lib/syncNotifications";
 import { refreshPublicScans } from "@/lib/syncPublicScans";
-import { getStartOfCurrentWeek } from "@/lib/utils/dates";
 import { BadgeMedallion } from "@/components/BadgeMedallion";
 import { badgeCopy, badgeMeta, isKnownBadge } from "@/constants/badges";
 import { badgeColors, palette } from "@/constants/theme";
+import { useAuthStore } from "@/store/useAuthStore";
+import { useModerationStore } from "@/store/useModerationStore";
 import { useSpotterStore } from "@/store/useSpotterStore";
 import type { BadgeUnlock, ScanRecord, UserProfile } from "@/types/app";
-
-const rankAccent = ["#f59e0b", "#94a3b8", "#b45309"];
 
 type FeedMode = "public" | "friends";
 
@@ -63,16 +69,27 @@ export function SocialScreen() {
   const knownUsers = useSpotterStore((state) => state.knownUsers);
   const badgeUnlocks = useSpotterStore((state) => state.badgeUnlocks);
   const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
-  const notifications = useSpotterStore((state) => state.notifications);
-  const hasUnreadNotifications = notifications.some((n) => n.readAt === null);
+  const sessionUserId = useAuthStore((s) => s.session?.user?.id ?? null);
+  const allNotifications = useSpotterStore((state) => state.notifications);
+  const myNotifications = useMemo(
+    () => notificationsForUser(allNotifications, sessionUserId ?? currentUser.id),
+    [allNotifications, sessionUserId, currentUser.id],
+  );
+  const hasUnreadNotifications = myNotifications.some((n) => n.readAt === null);
+
+  const blockedUserIds = useModerationStore((s) => s.blockedUserIds);
+  const setBlockedUserIds = useModerationStore((s) => s.setBlockedUserIds);
+  const addBlockedUserId = useModerationStore((s) => s.addBlockedUserId);
+  const blockedSet = useMemo(() => new Set(blockedUserIds), [blockedUserIds]);
 
   const [feedMode, setFeedMode] = useState<FeedMode>("public");
   const [editingScanId, setEditingScanId] = useState<string | null>(null);
   const [editingUri, setEditingUri] = useState<string | null>(null);
   const [deleteScanId, setDeleteScanId] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
-  const segmentTrackW = useSharedValue(0);
-  const segmentIndex = useSharedValue(0);
+  /** The scan whose report/block sheet is open, plus its author. */
+  const [moderationTarget, setModerationTarget] = useState<{ scanId: string; userId: string; username: string } | null>(null);
+  const [moderationBusy, setModerationBusy] = useState(false);
 
   useEffect(() => {
     if (!shareNotice) return;
@@ -83,6 +100,10 @@ export function SocialScreen() {
   const openPhotoEditor = async (scanId: string, photoUrl: string) => {
     try {
       const resolved = await resolveScanPhotoDisplayUrl(photoUrl);
+      if (!resolved) {
+        Alert.alert("Couldn't open editor", "We can't reach the photo right now. Please try again in a moment.");
+        return;
+      }
       setEditingUri(resolved);
       setEditingScanId(scanId);
     } catch (err) {
@@ -109,35 +130,6 @@ export function SocialScreen() {
     }
   };
 
-  useEffect(() => {
-    segmentIndex.value = withSpring(feedMode === "public" ? 0 : 1, { damping: 22, stiffness: 260 });
-  }, [feedMode, segmentIndex]);
-
-  const scans = useMemo(
-    () => allScans.filter((scan) => !scan.isPendingBreed && scan.userId === currentUser.id),
-    [allScans, currentUser.id],
-  );
-
-  const topDogs = useMemo(() => {
-    const weekStart = getStartOfCurrentWeek();
-    const weekCounts = new Map<string, number>();
-
-    scans.forEach((scan) => {
-      if (scan.isPrivate) return;
-      if (!scan.dogProfileId) return;
-      if (new Date(scan.scannedAt) < weekStart) return;
-      weekCounts.set(scan.dogProfileId, (weekCounts.get(scan.dogProfileId) ?? 0) + 1);
-    });
-
-    return [...dogProfiles]
-      .map((dog) => ({
-        ...dog,
-        weeklyScans: weekCounts.get(dog.id) ?? 0,
-      }))
-      .sort((a, b) => (b.weeklyScans === a.weeklyScans ? b.totalScans - a.totalScans : b.weeklyScans - a.weeklyScans))
-      .slice(0, 3);
-  }, [dogProfiles, scans]);
-
   const friendIds = useMemo(() => new Set(friends.map((f) => f.id)), [friends]);
 
   useFocusEffect(
@@ -145,22 +137,70 @@ export function SocialScreen() {
       void refreshPublicScans();
       void refreshNotifications();
       void refreshBadgeUnlocks();
-    }, []),
+      void (async () => {
+        const ids = await fetchBlockedUserIds();
+        setBlockedUserIds(ids);
+      })();
+    }, [setBlockedUserIds]),
   );
+
+  const handleReport = useCallback(
+    async (reason: ReportReason) => {
+      const target = moderationTarget;
+      if (!target) return;
+      setModerationBusy(true);
+      try {
+        const result = await reportContent({
+          reason,
+          scanId: target.scanId,
+          reportedUserId: target.userId,
+        });
+        setModerationTarget(null);
+        if (result.ok) {
+          setShareNotice("Thanks — our team will review this report.");
+        } else {
+          Alert.alert("Couldn't send report", result.message);
+        }
+      } finally {
+        setModerationBusy(false);
+      }
+    },
+    [moderationTarget],
+  );
+
+  const handleBlock = useCallback(async () => {
+    const target = moderationTarget;
+    if (!target) return;
+    setModerationBusy(true);
+    try {
+      const result = await blockUser(target.userId);
+      setModerationTarget(null);
+      if (result.ok) {
+        addBlockedUserId(target.userId);
+        setShareNotice(`You blocked ${target.username}. Their posts are now hidden.`);
+      } else {
+        Alert.alert("Couldn't block", result.message);
+      }
+    } finally {
+      setModerationBusy(false);
+    }
+  }, [addBlockedUserId, moderationTarget]);
 
   const feedSourceScans = useMemo(() => {
     if (feedMode === "public") {
-      return allScans.filter((s) => !s.isPendingBreed && !s.isPrivate);
+      return allScans.filter((s) => !s.isPendingBreed && !s.isPrivate && !blockedSet.has(s.userId));
     }
-    return allScans.filter((s) => friendIds.has(s.userId) && !s.isPendingBreed);
-  }, [allScans, feedMode, friendIds]);
+    return allScans.filter(
+      (s) => friendIds.has(s.userId) && !s.isPendingBreed && !blockedSet.has(s.userId),
+    );
+  }, [allScans, blockedSet, feedMode, friendIds]);
 
   const feedSourceBadgeUnlocks = useMemo(() => {
-    if (feedMode === "public") return badgeUnlocks;
+    if (feedMode === "public") return badgeUnlocks.filter((u) => !blockedSet.has(u.userId));
     return badgeUnlocks.filter(
-      (u) => u.userId === currentUser.id || friendIds.has(u.userId),
+      (u) => u.userId === currentUser.id || (friendIds.has(u.userId) && !blockedSet.has(u.userId)),
     );
-  }, [badgeUnlocks, currentUser.id, feedMode, friendIds]);
+  }, [badgeUnlocks, blockedSet, currentUser.id, feedMode, friendIds]);
 
   type ScanFeedEntry = {
     kind: "scan";
@@ -213,15 +253,6 @@ export function SocialScreen() {
     knownUsers,
   ]);
 
-  const thumbStyle = useAnimatedStyle(() => {
-    const pad = 4;
-    const w = Math.max(0, (segmentTrackW.value - pad) / 2);
-    return {
-      width: w,
-      transform: [{ translateX: segmentIndex.value * w }],
-    };
-  });
-
   return (
     <ScrollView className="flex-1 bg-zinc-50 dark:bg-ink" contentContainerStyle={{ paddingBottom: 96 }}>
       <View className="flex-row items-center justify-between gap-3 px-4 pt-8">
@@ -252,87 +283,31 @@ export function SocialScreen() {
         </View>
       </View>
 
-      <View className="px-4 pb-6 pt-4">
-        <View className="overflow-hidden rounded-3xl bg-white shadow-sm dark:bg-card dark:shadow-none">
-          <View className="px-5 py-4">
-            <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-base font-bold text-black dark:text-white">Top dogs</Text>
-              <Text className="text-xs font-medium text-zinc-500 dark:text-zinc-400">This week</Text>
-            </View>
-            {topDogs.length === 0 ? (
-              <Text className="py-2 text-sm text-zinc-500 dark:text-zinc-400">No scans yet this week. Get spotting!</Text>
-            ) : (
-              topDogs.map((dog, index) => {
-                const breed = breeds.find((item) => item.id === dog.breedId)!;
-                const accent = rankAccent[index] ?? palette.muted;
-                return (
-                  <Pressable
-                    key={dog.id}
-                    onPress={() => navigation.navigate("TopDogs")}
-                    className="mb-2 flex-row items-center rounded-2xl bg-zinc-50 px-3 py-3 dark:bg-zinc-950/80"
-                  >
-                    <View
-                      className="mr-3 h-9 w-9 items-center justify-center rounded-full"
-                      style={{ backgroundColor: `${accent}22` }}
-                    >
-                      <Text className="text-sm font-bold" style={{ color: accent }}>
-                        {index + 1}
-                      </Text>
-                    </View>
-                    <View className="min-w-0 flex-1">
-                      <Text className="font-semibold text-black dark:text-white" numberOfLines={1}>
-                        {dog.name}
-                      </Text>
-                      <Text className="text-xs text-zinc-600 dark:text-zinc-400" numberOfLines={1}>
-                        {breed.name}
-                      </Text>
-                    </View>
-                    <View className="items-end">
-                      <Text className="text-sm font-bold text-amber">{dog.weeklyScans}</Text>
-                      <Text className="text-[10px] text-zinc-500 dark:text-zinc-400">scans</Text>
-                    </View>
-                  </Pressable>
-                );
-              })
-            )}
-            <Pressable
-              onPress={() => navigation.navigate("TopDogs")}
-              className="mt-2 flex-row items-center justify-center gap-1 py-2"
-            >
-              <Text className="text-sm font-semibold text-amber">Full leaderboard</Text>
-              <MaterialCommunityIcons name="chevron-right" size={18} color={palette.amber} />
-            </Pressable>
-          </View>
-        </View>
-      </View>
-
       {/* Feed */}
       <View className="px-4">
-        <View className="mb-3 flex-row items-baseline justify-between">
-          <Text className="text-lg font-bold text-black dark:text-white">Recent spots</Text>
+        <View className="mb-3 w-full flex-row items-center gap-2.5">
           <Text className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
             {feed.length} {feedMode === "public" ? "from everyone" : "from friends"}
           </Text>
         </View>
 
-        <View
-          className="relative mb-3 h-9 w-full flex-row rounded-full bg-zinc-200 p-0.5 dark:bg-zinc-800"
-          onLayout={(e) => {
-            segmentTrackW.value = e.nativeEvent.layout.width;
-          }}
-        >
-          <Animated.View
-            className="absolute left-0.5 top-0.5 rounded-full bg-white shadow-sm dark:bg-zinc-700"
-            style={[{ height: 32 }, thumbStyle]}
-          />
+        <View className="mb-3 w-full flex-row gap-2.5">
           <Pressable
             onPress={() => setFeedMode("public")}
-            className="z-10 flex-1 items-center justify-center"
+            className={`h-11 flex-1 items-center justify-center rounded-full ${
+              feedMode === "public"
+                ? "bg-amber"
+                : "border border-zinc-200 bg-white dark:border-border dark:bg-card"
+            }`}
             accessibilityRole="button"
             accessibilityState={{ selected: feedMode === "public" }}
           >
             <Text
-              className={`text-xs font-semibold ${feedMode === "public" ? "text-black dark:text-white" : "text-zinc-500 dark:text-zinc-400"}`}
+              className={`text-sm font-semibold ${
+                feedMode === "public"
+                  ? "text-white"
+                  : "text-zinc-600 dark:text-zinc-300"
+              }`}
             >
               Public
             </Text>
@@ -342,12 +317,24 @@ export function SocialScreen() {
               if (!PILOT_FRIENDS_ENABLED) return;
               setFeedMode("friends");
             }}
-            className="z-10 flex-1 items-center justify-center"
+            disabled={!PILOT_FRIENDS_ENABLED}
+            className={`h-11 flex-1 items-center justify-center rounded-full ${
+              feedMode === "friends"
+                ? "bg-amber"
+                : "border border-zinc-200 bg-white dark:border-border dark:bg-card"
+            } ${!PILOT_FRIENDS_ENABLED ? "opacity-50" : ""}`}
             accessibilityRole="button"
-            accessibilityState={{ selected: feedMode === "friends", disabled: !PILOT_FRIENDS_ENABLED }}
+            accessibilityState={{
+              selected: feedMode === "friends",
+              disabled: !PILOT_FRIENDS_ENABLED,
+            }}
           >
             <Text
-              className={`text-xs font-semibold ${feedMode === "friends" ? "text-black dark:text-white" : "text-zinc-500 dark:text-zinc-400"}`}
+              className={`text-sm font-semibold ${
+                feedMode === "friends"
+                  ? "text-white"
+                  : "text-zinc-600 dark:text-zinc-300"
+              }`}
             >
               Friends
             </Text>
@@ -492,7 +479,17 @@ export function SocialScreen() {
                     >
                       <MaterialCommunityIcons name="trash-can-outline" size={18} color="#b91c1c" />
                     </Pressable>
-                  ) : null}
+                  ) : (
+                    <Pressable
+                      onPress={() =>
+                        setModerationTarget({ scanId: scan.id, userId: user.id, username: user.username })
+                      }
+                      className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
+                      accessibilityLabel="Report or block"
+                    >
+                      <MaterialCommunityIcons name="dots-horizontal" size={18} color={palette.muted} />
+                    </Pressable>
+                  )}
                 </View>
               </View>
 
@@ -549,6 +546,15 @@ export function SocialScreen() {
           setDeleteScanId(null);
           if (id) void deleteSpot(id);
         }}
+      />
+      <ContentActionSheet
+        visible={moderationTarget !== null}
+        onClose={() => setModerationTarget(null)}
+        subjectLabel={moderationTarget?.username ?? "this user"}
+        busy={moderationBusy}
+        isBlocked={moderationTarget ? blockedSet.has(moderationTarget.userId) : false}
+        onReport={(reason) => void handleReport(reason)}
+        onToggleBlock={() => void handleBlock()}
       />
     </ScrollView>
   );

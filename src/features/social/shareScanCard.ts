@@ -11,6 +11,7 @@ export type ShareScanCardResult =
 
 export async function shareScanCard(scan: ScanRecord, breed: Breed): Promise<ShareScanCardResult> {
   const sourceUri = await resolveScanPhotoDisplayUrl(scan.photoUrl);
+  if (!sourceUri) return { ok: false, reason: "Could not load the photo for sharing." };
   const manipulated = await ImageManipulator.manipulateAsync(
     sourceUri,
     [{ resize: { width: 1200 } }],

@@ -1,5 +1,6 @@
 import type { MaterialCommunityIcons } from "@expo/vector-icons";
 
+import { DOGDEX_TOTAL } from "@/constants/app";
 import type { BadgeType } from "@/types/app";
 
 export type BadgeCategory = "discovery" | "collection" | "streak" | "social";
@@ -235,4 +236,121 @@ export function badgesByCategory(): Record<BadgeCategory, BadgeType[]> {
   };
   for (const id of badgeDisplayOrder) grouped[badgeMeta[id].category].push(id);
   return grouped;
+}
+
+/** Thresholds mirror `recomputeBadges` in the store — keep in sync. */
+type BadgeThreshold =
+  | { metric: "scans"; value: number }
+  | { metric: "breeds"; value: number }
+  | { metric: "streak"; value: number }
+  | { metric: "friends"; value: number }
+  | { metric: "league_win" }
+  | { metric: "likes"; value: number };
+
+const badgeThreshold: Record<BadgeType, BadgeThreshold> = {
+  puppy_scout: { metric: "scans", value: 5 },
+  park_rover: { metric: "scans", value: 25 },
+  breed_hunter: { metric: "scans", value: 100 },
+  master_spotter: { metric: "scans", value: 300 },
+  common_collector: { metric: "breeds", value: 5 },
+  kennel_expert: { metric: "breeds", value: 10 },
+  dog_encyclopedia: { metric: "breeds", value: 25 },
+  legendary_collector: { metric: "breeds", value: DOGDEX_TOTAL },
+  daily_walker: { metric: "streak", value: 3 },
+  consistent_collector: { metric: "streak", value: 7 },
+  dog_obsessed: { metric: "streak", value: 30 },
+  off_the_leash: { metric: "streak", value: 100 },
+  pack_member: { metric: "friends", value: 3 },
+  dog_squad: { metric: "friends", value: 10 },
+  rival_spotter: { metric: "league_win" },
+  community_favourite: { metric: "likes", value: 25 },
+};
+
+export interface BadgeProgressStats {
+  totalScans: number;
+  distinctBreeds: number;
+  longestStreakDays: number;
+  friendsCount: number;
+  /** True when the user has an ended league (pilot win condition). */
+  hasEndedLeague: boolean;
+  likesReceived: number;
+}
+
+/**
+ * Longest run of consecutive local calendar days with at least one scan.
+ * Duplicated from the store helper so Profile can show streak progress
+ * without importing Zustand internals.
+ */
+export function computeLongestScanStreak(scanIsoDates: string[]): number {
+  if (scanIsoDates.length === 0) return 0;
+  const days = new Set<number>();
+  for (const iso of scanIsoDates) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) continue;
+    days.add(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime());
+  }
+  if (days.size === 0) return 0;
+  const sorted = Array.from(days).sort((a, b) => a - b);
+  const oneDay = 24 * 60 * 60 * 1000;
+  let best = 1;
+  let curr = 1;
+  for (let i = 1; i < sorted.length; i++) {
+    const diff = Math.round((sorted[i] - sorted[i - 1]) / oneDay);
+    if (diff === 1) {
+      curr += 1;
+      if (curr > best) best = curr;
+    } else if (diff > 1) {
+      curr = 1;
+    }
+  }
+  return best;
+}
+
+/**
+ * Short hint for the Profile achievements header: how much is left before
+ * the next unearned badge in this category. Returns `null` when every badge
+ * in the category is already unlocked.
+ */
+export function nextBadgeHintForCategory(
+  category: BadgeCategory,
+  unlocked: Set<BadgeType>,
+  stats: BadgeProgressStats,
+): string | null {
+  const ids = badgesByCategory()[category];
+  const nextId = ids.find((id) => !unlocked.has(id));
+  if (!nextId) return null;
+
+  const th = badgeThreshold[nextId];
+  const nextLabel = badgeMeta[nextId].label;
+
+  if (th.metric === "league_win") {
+    return stats.hasEndedLeague ? `Almost there · ${nextLabel}` : `Win a league · ${nextLabel}`;
+  }
+
+  let current = 0;
+  let unit = "";
+  if (th.metric === "scans") {
+    current = stats.totalScans;
+    unit = "scan";
+  } else if (th.metric === "breeds") {
+    current = stats.distinctBreeds;
+    unit = "breed";
+  } else if (th.metric === "streak") {
+    current = stats.longestStreakDays;
+    unit = "day";
+  } else if (th.metric === "friends") {
+    current = stats.friendsCount;
+    unit = "friend";
+  } else if (th.metric === "likes") {
+    current = stats.likesReceived;
+    unit = "like";
+  }
+
+  const remaining = Math.max(0, th.value - current);
+  if (remaining <= 0) {
+    return `Almost there · ${nextLabel}`;
+  }
+
+  const plural = remaining === 1 ? unit : `${unit}s`;
+  return `${remaining} more ${plural}`;
 }

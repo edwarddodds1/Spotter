@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { saveSpot } from "@/features/spot/spotService";
 import type { RootStackParamList } from "@/core/navigation/types";
 import { MAX_SCAN_LOCATION_LABEL_LENGTH } from "@/constants/app";
+import { palette } from "@/constants/theme";
 import { MAX_SPOT_COMMENT_LENGTH } from "@/constants/feedSocial";
 import { reverseGeocodeForSpot } from "@/lib/spotLocationLabel";
 import { useSpotterStore } from "@/store/useSpotterStore";
@@ -147,7 +148,7 @@ export function DogNamingScreen({ navigation }: Props) {
             onSubmitEditing={Keyboard.dismiss}
             className="min-h-[48px] flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-black dark:border-border dark:bg-card dark:text-white"
           />
-          {locationLookup ? <ActivityIndicator size="small" color="#BA7517" /> : null}
+          {locationLookup ? <ActivityIndicator size="small" color={palette.amber} /> : null}
         </View>
 
         <View className="mt-5 flex-row items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 dark:border-border dark:bg-zinc-950">

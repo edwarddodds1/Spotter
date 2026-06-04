@@ -21,7 +21,6 @@ export function LeagueDetailScreen({ route }: Props) {
   const friends = useSpotterStore((state) => state.friends);
   const addLeagueFriendRequest = useSpotterStore((state) => state.addLeagueFriendRequest);
   const leagues = useSpotterStore((state) => state.leagues);
-  const weeklyPoints = useSpotterStore((state) => state.weeklyPoints);
   const scans = useSpotterStore((state) => state.scans);
   const breeds = useSpotterStore((state) => state.breeds);
 
@@ -34,21 +33,23 @@ export function LeagueDetailScreen({ route }: Props) {
   const league = useMemo(() => leagues.find((item) => item.id === leagueId) ?? null, [leagues, leagueId]);
 
   /**
-   * Per-user, per-rarity scan counts **scoped to this league's window** —
-   * from `league.createdAt` up to `league.endsAt` (clamped to now if the
-   * season is still ongoing). Members with no in-window scans simply never
-   * appear in the map, so the leaderboard fallback renders `0` for each
-   * rarity circle.
+   * Per-user, per-rarity scan counts AND total points **scoped to this
+   * league's window** — from `league.createdAt` up to `league.endsAt`
+   * (clamped to now if the season is still ongoing). Every non-pending
+   * scan inside the window contributes its `pointsAwarded` to that user's
+   * league total. Members with no in-window scans simply never appear in
+   * the map, so the leaderboard fallback renders `0`.
    */
-  const scansByRarityByUser = useMemo(() => {
-    const acc = new Map<string, Record<BreedRarity, number>>();
-    if (!league) return acc;
+  const { scansByRarityByUser, pointsByUser } = useMemo(() => {
+    const rarityCounts = new Map<string, Record<BreedRarity, number>>();
+    const points = new Map<string, number>();
+    if (!league) return { scansByRarityByUser: rarityCounts, pointsByUser: points };
     const startMs = Date.parse(league.createdAt);
-    if (!Number.isFinite(startMs)) return acc;
+    if (!Number.isFinite(startMs)) return { scansByRarityByUser: rarityCounts, pointsByUser: points };
     const endMs = league.endsAt
       ? Math.min(Date.now(), Date.parse(league.endsAt))
       : Date.now();
-    if (!Number.isFinite(endMs)) return acc;
+    if (!Number.isFinite(endMs)) return { scansByRarityByUser: rarityCounts, pointsByUser: points };
 
     for (const scan of scans) {
       if (scan.isPendingBreed) continue;
@@ -59,14 +60,15 @@ export function LeagueDetailScreen({ route }: Props) {
       if (!Number.isFinite(scanMs)) continue;
       if (scanMs < startMs || scanMs > endMs) continue;
 
-      let counts = acc.get(scan.userId);
+      let counts = rarityCounts.get(scan.userId);
       if (!counts) {
         counts = { common: 0, uncommon: 0, rare: 0, legendary: 0 };
-        acc.set(scan.userId, counts);
+        rarityCounts.set(scan.userId, counts);
       }
       counts[rarity] += 1;
+      points.set(scan.userId, (points.get(scan.userId) ?? 0) + (scan.pointsAwarded ?? 0));
     }
-    return acc;
+    return { scansByRarityByUser: rarityCounts, pointsByUser: points };
   }, [breedRarityById, league, scans]);
 
   const members = useMemo<Array<{ id: string; username: string; avatarUrl: string | null; city: string; country: string }>>(() => {
@@ -84,7 +86,7 @@ export function LeagueDetailScreen({ route }: Props) {
         userId: member.id,
         username: member.username,
         avatarUrl: member.avatarUrl,
-        weeklyPoints: member.id === currentUser.id ? weeklyPoints : 0,
+        points: pointsByUser.get(member.id) ?? 0,
         rarityCounts:
           scansByRarityByUser.get(member.id) ?? {
             common: 0,
@@ -93,9 +95,12 @@ export function LeagueDetailScreen({ route }: Props) {
             legendary: 0,
           },
       }))
-      .sort((a, b) => b.weeklyPoints - a.weeklyPoints)
+      .sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        return a.username.localeCompare(b.username);
+      })
       .map((entry, index) => ({ ...entry, rank: index + 1 }));
-  }, [currentUser.id, members, scansByRarityByUser, weeklyPoints]);
+  }, [members, pointsByUser, scansByRarityByUser]);
 
   if (!league) {
     return (
@@ -155,7 +160,7 @@ export function LeagueDetailScreen({ route }: Props) {
               </View>
             </View>
           </Pressable>
-          <Text className="font-semibold text-black dark:text-white">{entry.weeklyPoints} pts</Text>
+          <Text className="font-semibold text-black dark:text-white">{entry.points} pts</Text>
         </View>
       ))}
 

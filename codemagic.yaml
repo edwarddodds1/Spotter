@@ -1,0 +1,107 @@
+# Codemagic CI/CD — Spotter (Expo managed, iOS → TestFlight)
+#
+# This builds the native iOS app on Codemagic's macOS machines:
+#   npm ci  →  expo prebuild (generates ios/)  →  CocoaPods  →  signed archive  →  TestFlight
+#
+# ───────────────────────────────────────────────────────────────────────────
+# ONE-TIME SETUP IN THE CODEMAGIC UI (cannot be done from this repo):
+#
+# 1. App Store Connect API key
+#    Codemagic → Teams/User settings → Integrations → App Store Connect → add key.
+#    Then reference its name below under `integrations.app_store_connect`
+#    (this file uses the name "AppStoreConnect" — rename to match yours).
+#
+# 2. Environment variable group "supabase" (Codemagic → Environment variables):
+#    - Supabase_URL                 = https://<your-ref>.supabase.co
+#    - Supabase_Publishable_Key     = sb_publishable_...
+#    Add them to a group called "supabase" and mark the key as secure.
+#
+# 3. APP_STORE_APPLE_ID (in the "appstore" group below): the numeric Apple ID
+#    of the app from App Store Connect → App Information → "Apple ID".
+#    Used to auto-increment the build number from the latest TestFlight build.
+#    Leave empty until the app record exists; the build falls back to
+#    Codemagic's $BUILD_NUMBER.
+# ───────────────────────────────────────────────────────────────────────────
+
+workflows:
+  ios-testflight:
+    name: iOS — TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+          source: true
+
+    integrations:
+      # ⚠️ Rename to match the App Store Connect API key you added in Codemagic.
+      app_store_connect: AppStoreConnect
+
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.spotter.dog
+      groups:
+        - supabase   # Supabase_URL, Supabase_Publishable_Key
+        - appstore   # APP_STORE_APPLE_ID (numeric Apple app id)
+      vars:
+        XCODE_WORKSPACE: "Spotter.xcworkspace"
+        XCODE_SCHEME: "Spotter"
+        BUNDLE_ID: "com.spotter.dog"
+        # Force the production guard in app.config.js so a build never ships
+        # with placeholder Supabase config.
+        EXPO_PUBLIC_FAIL_ON_MISSING_ENV: "true"
+      node: 20
+      xcode: latest
+      cocoapods: default
+
+    cache:
+      cache_paths:
+        - $HOME/.npm
+        - $HOME/Library/Caches/CocoaPods
+
+    scripts:
+      - name: Install npm dependencies
+        script: npm ci
+
+      - name: Generate native iOS project (expo prebuild)
+        script: npx expo prebuild --platform ios --clean
+
+      - name: Set up code signing profiles
+        script: xcode-project use-profiles
+
+      - name: Set build number from latest TestFlight build
+        script: |
+          set -e
+          cd ios
+          if [ -n "$APP_STORE_APPLE_ID" ]; then
+            LATEST_BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$APP_STORE_APPLE_ID" 2>/dev/null || echo "")
+          else
+            LATEST_BUILD_NUMBER=""
+          fi
+          if [ -z "$LATEST_BUILD_NUMBER" ]; then
+            NEW_BUILD_NUMBER="$BUILD_NUMBER"
+          else
+            NEW_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+          fi
+          echo "Setting iOS build number to $NEW_BUILD_NUMBER"
+          agvtool new-version -all "$NEW_BUILD_NUMBER"
+
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --workspace "ios/$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

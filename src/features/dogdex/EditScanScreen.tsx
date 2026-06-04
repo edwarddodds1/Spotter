@@ -139,6 +139,10 @@ export function EditScanScreen({ navigation, route }: Props) {
   const openPhotoEditor = async () => {
     try {
       const resolved = await resolveScanPhotoDisplayUrl(scan.photoUrl);
+      if (!resolved) {
+        setPhotoError("We can't reach the photo right now. Please try again in a moment.");
+        return;
+      }
       setEditingUri(resolved);
     } catch (err) {
       console.warn("[EditScanScreen] could not open photo editor", err);

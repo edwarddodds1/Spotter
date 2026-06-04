@@ -8,6 +8,7 @@ import { UserAvatar } from "@/components/UserAvatar";
 import { openUserProfileNavigate } from "@/components/UsernameLink";
 import { palette } from "@/constants/theme";
 import type { RootStackParamList } from "@/core/navigation/types";
+import { notificationsForUser } from "@/lib/notifications";
 import { markAllNotificationsRead } from "@/lib/supabase/notificationsRemote";
 import { refreshNotifications } from "@/lib/syncNotifications";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -16,7 +17,10 @@ import type { AppNotification, NotificationKind } from "@/types/app";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Notifications">;
 
-const KIND_COPY: Record<NotificationKind, { title: (actor: string) => string; cta: string }> = {
+const KIND_COPY: Record<
+  NotificationKind,
+  { title: (actor: string, context?: { leagueName?: string }) => string; cta: string }
+> = {
   friend_request: {
     title: (a) => `${a} sent you a friend request`,
     cta: "Review request",
@@ -24,6 +28,13 @@ const KIND_COPY: Record<NotificationKind, { title: (actor: string) => string; ct
   friend_request_accepted: {
     title: (a) => `${a} accepted your friend request`,
     cta: "View profile",
+  },
+  league_invite: {
+    title: (a, ctx) =>
+      ctx?.leagueName
+        ? `${a} invited you to join "${ctx.leagueName}"`
+        : `${a} invited you to a league`,
+    cta: "Accept invite",
   },
 };
 
@@ -44,8 +55,15 @@ function formatRelative(iso: string): string {
 export function NotificationsScreen({ navigation }: Props) {
   const session = useAuthStore((s) => s.session);
   const myUserId = session?.user?.id ?? null;
-  const notifications = useSpotterStore((s) => s.notifications);
+  const allNotifications = useSpotterStore((s) => s.notifications);
+  const currentUserId = useSpotterStore((s) => s.currentUser.id);
+  const notifications = useMemo(
+    () => notificationsForUser(allNotifications, myUserId ?? currentUserId),
+    [allNotifications, myUserId, currentUserId],
+  );
   const markAllNotificationsReadLocal = useSpotterStore((s) => s.markAllNotificationsRead);
+  const acceptLeagueInvite = useSpotterStore((s) => s.acceptLeagueInvite);
+  const leagues = useSpotterStore((s) => s.leagues);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -88,9 +106,21 @@ export function NotificationsScreen({ navigation }: Props) {
         if (notification.actor) {
           openUserProfileNavigate(navigation as any, myUserId, notification.actor.id);
         }
+      } else if (notification.kind === "league_invite") {
+        acceptLeagueInvite(notification.id);
+        const leagueId = notification.context?.leagueId;
+        const league = leagueId ? leagues.find((l) => l.id === leagueId) : null;
+        if (league) {
+          navigation.navigate("LeagueDetail", {
+            leagueId: league.id,
+            leagueName: league.name,
+            memberCount: league.memberCount,
+            maxMembers: league.maxMembers,
+          });
+        }
       }
     },
-    [myUserId, navigation],
+    [acceptLeagueInvite, leagues, myUserId, navigation],
   );
 
   return (
@@ -102,7 +132,7 @@ export function NotificationsScreen({ navigation }: Props) {
       <View className="px-4 pt-4">
         <Text className="text-3xl font-bold text-black dark:text-white">Notifications</Text>
         <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Activity from friends, requests, and accepted invites.
+          Friend requests, league invites, and other activity.
         </Text>
       </View>
 
@@ -136,7 +166,7 @@ export function NotificationsScreen({ navigation }: Props) {
                 </Pressable>
                 <View className="min-w-0 flex-1">
                   <Text className="text-sm text-black dark:text-white" numberOfLines={2}>
-                    {copy.title(actorName)}
+                    {copy.title(actorName, n.context)}
                   </Text>
                   <Text className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                     {formatRelative(n.createdAt)}

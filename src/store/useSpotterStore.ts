@@ -244,6 +244,18 @@ export interface SpotterState {
    */
   setBadgeUnlocksFromServer: (input: { unlocks: BadgeUnlock[]; users: UserProfile[] }) => void;
   createLeague: (input: CreateLeagueInput) => void;
+  /**
+   * Pilot demo: send `league_invite` notifications. In a multi-user build
+   * these land in each `friendUserId`'s notifications; locally we mirror them
+   * into the current user's own list so the inviter can preview the flow.
+   */
+  inviteFriendsToLeague: (input: {
+    leagueId: string;
+    leagueName: string;
+    friendUserIds: string[];
+  }) => void;
+  /** Pilot: dismiss a `league_invite` notification once the user accepts. */
+  acceptLeagueInvite: (notificationId: string) => void;
   setThemeMode: (mode: "light" | "dark") => void;
   toggleFeedReaction: (scanId: string, kind: FeedReactionKind) => void;
   addFeedComment: (scanId: string, body: string) => void;
@@ -1329,7 +1341,20 @@ export const useSpotterStore = create<SpotterState>()(
         }),
       };
     }),
-  setNotificationsFromServer: (notifications) => set(() => ({ notifications })),
+  setNotificationsFromServer: (serverNotifications) =>
+    set((state) => {
+      const localLeagueInvites = state.notifications.filter(
+        (n) => n.kind === "league_invite" && n.userId === state.currentUser.id,
+      );
+      const byId = new Map(serverNotifications.map((n) => [n.id, n] as const));
+      for (const inv of localLeagueInvites) {
+        if (!byId.has(inv.id)) byId.set(inv.id, inv);
+      }
+      const merged = Array.from(byId.values()).sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+      return { notifications: merged };
+    }),
   markAllNotificationsRead: () =>
     set((state) => {
       if (state.notifications.every((n) => n.readAt !== null)) return state;
@@ -1383,6 +1408,54 @@ export const useSpotterStore = create<SpotterState>()(
         ],
       };
     }),
+  inviteFriendsToLeague: ({ leagueId, leagueName, friendUserIds }) =>
+    set((state) => {
+      const cleaned = Array.from(new Set(friendUserIds)).filter((id) => id && id !== state.currentUser.id);
+      if (cleaned.length === 0) return state;
+      const friendById = new Map(state.friends.map((f) => [f.id, f] as const));
+      const nowIso = new Date().toISOString();
+      const inviter = state.currentUser;
+      /**
+       * Pilot: each selected friend gets an inbound `league_invite` notification
+       * (actor = inviter). On a single signed-in device we also mirror one
+       * sample inbound invite so the creator can walk through Accept in
+       * Notifications without switching accounts.
+       */
+      const newNotifications: AppNotification[] = [];
+      for (const friendId of cleaned) {
+        const friend = friendById.get(friendId);
+        if (!friend) continue;
+        newNotifications.push({
+          id: createId("league-invite"),
+          userId: friendId,
+          kind: "league_invite",
+          actor: inviter,
+          readAt: null,
+          createdAt: nowIso,
+          context: { leagueId, leagueName },
+        });
+      }
+      const previewFriend = cleaned.map((id) => friendById.get(id)).find(Boolean);
+      if (previewFriend) {
+        newNotifications.push({
+          id: createId("league-invite-preview"),
+          userId: state.currentUser.id,
+          kind: "league_invite",
+          actor: inviter,
+          readAt: null,
+          createdAt: nowIso,
+          context: { leagueId, leagueName },
+        });
+      }
+      if (newNotifications.length === 0) return state;
+      return {
+        notifications: [...newNotifications, ...state.notifications],
+      };
+    }),
+  acceptLeagueInvite: (notificationId) =>
+    set((state) => ({
+      notifications: state.notifications.filter((n) => n.id !== notificationId),
+    })),
   createLeague: (input) => {
     const name = input.name.trim();
     if (!name) return;

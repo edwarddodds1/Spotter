@@ -11,6 +11,7 @@ import { useColorScheme } from "nativewind";
 import { AppNavigator } from "@/core/navigation/AppNavigator";
 import { RootErrorBoundary } from "@/core/RootErrorBoundary";
 import { AuthScreen } from "@/features/auth/AuthScreen";
+import { palette } from "@/constants/theme";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { fetchFriendshipsForUser } from "@/lib/supabase/friendshipsRemote";
 import { recoverWebSessionFromUrl } from "@/lib/supabase/recoverSessionFromUrl";
@@ -19,6 +20,13 @@ import { pushLocalBadgeUnlocks, refreshBadgeUnlocks } from "@/lib/syncBadgeUnloc
 import { refreshFriendsScans } from "@/lib/syncFriendScans";
 import { refreshNotifications } from "@/lib/syncNotifications";
 import { refreshPublicScans } from "@/lib/syncPublicScans";
+import {
+  loadPendingPhotoUploads,
+} from "@/lib/photoUpload/pendingPhotoUploads";
+import {
+  purgeStaleClientPhotoUrls,
+  retryAllPendingPhotoUploads,
+} from "@/lib/photoUpload/retryPendingUploads";
 import { pullAndSyncUserScans } from "@/lib/syncUserScans";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useSpotterStore, waitForSpotterStoreHydration } from "@/store/useSpotterStore";
@@ -26,7 +34,6 @@ import { useSpotterStore, waitForSpotterStoreHydration } from "@/store/useSpotte
 function RootAppInner() {
   const session = useAuthStore((state) => state.session);
   const isReady = useAuthStore((state) => state.isReady);
-  const demoMode = useAuthStore((state) => state.demoMode);
   const setSession = useAuthStore((state) => state.setSession);
   const setReady = useAuthStore((state) => state.setReady);
   const themeMode = useSpotterStore((state) => state.themeMode);
@@ -101,7 +108,10 @@ function RootAppInner() {
             if (data.session) setSession(data.session);
           });
           const userId = useAuthStore.getState().session?.user?.id;
-          if (userId) void pullAndSyncUserScans(userId);
+          if (userId) {
+            void pullAndSyncUserScans(userId);
+            void retryAllPendingPhotoUploads();
+          }
         }
       };
       document.addEventListener("visibilitychange", onVisible);
@@ -117,7 +127,10 @@ function RootAppInner() {
           if (data.session) setSession(data.session);
         });
         const userId = useAuthStore.getState().session?.user?.id;
-        if (userId) void pullAndSyncUserScans(userId);
+        if (userId) {
+          void pullAndSyncUserScans(userId);
+          void retryAllPendingPhotoUploads();
+        }
       } else {
         supabase.auth.stopAutoRefresh();
       }
@@ -223,6 +236,22 @@ function RootAppInner() {
         console.warn("[RootApp] Could not sync scans from Supabase:", err);
       }
 
+      /**
+       * Photo upload recovery — runs once per session login. Loads the
+       * persisted queue, purges any now-dead `blob:`/`data:` URLs from
+       * `scans` rows that aren't recoverable, and retries every queued
+       * upload sequentially. Failures are tracked per-entry and stop after
+       * a few attempts so a permanently broken entry doesn't poison the
+       * loop forever.
+       */
+      try {
+        await loadPendingPhotoUploads();
+        purgeStaleClientPhotoUrls();
+        void retryAllPendingPhotoUploads();
+      } catch (err) {
+        console.warn("[RootApp] pending photo upload bootstrap failed:", err);
+      }
+
       try {
         const bundle = await fetchFriendshipsForUser(session.user.id);
         setFriendshipsFromServer(bundle);
@@ -271,10 +300,10 @@ function RootAppInner() {
           {!isReady ? (
             <View className="flex-1 items-center justify-center bg-white dark:bg-ink">
               <AppMark size={72} />
-              <ActivityIndicator style={{ marginTop: 20 }} color="#BA7517" />
+              <ActivityIndicator style={{ marginTop: 20 }} color={palette.amber} />
               <Text className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">Loading Spotter...</Text>
             </View>
-          ) : session || demoMode ? (
+          ) : session ? (
             <View style={{ flex: 1 }}>
               {!isSupabaseConfigured ? (
                 <View className="bg-amber px-4 py-2">

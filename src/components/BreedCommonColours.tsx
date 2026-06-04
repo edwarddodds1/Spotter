@@ -102,6 +102,23 @@ export function BreedCommonColours({ breedId, rarity, scans, isUnlocked }: Props
     [options, scanCountsByCoat],
   );
 
+  /**
+   * Re-order so discovered variants come FIRST. This makes the segmented bar
+   * read as a continuous left-to-right progress bar (filled chunk on the
+   * left, unfilled chunk on the right) instead of a patchwork. Within each
+   * group we preserve the original catalog order so the layout is stable as
+   * the user discovers more variants.
+   */
+  const orderedOptions = useMemo(() => {
+    const discovered: CoatColourOption[] = [];
+    const remaining: CoatColourOption[] = [];
+    for (const opt of options) {
+      if ((scanCountsByCoat.get(opt.id) ?? 0) > 0) discovered.push(opt);
+      else remaining.push(opt);
+    }
+    return [...discovered, ...remaining];
+  }, [options, scanCountsByCoat]);
+
   const totalVariants = options.length;
   const variantScanTarget = variantThresholds[rarity];
   const scansToNextVariant = Math.max(variantScanTarget - scans.length, 0);
@@ -122,10 +139,10 @@ export function BreedCommonColours({ breedId, rarity, scans, isUnlocked }: Props
             style={{ borderColor: PROGRESS_GREEN_DARK }}
           >
             <View className="flex-row">
-              {options.map((opt, index) => {
+              {orderedOptions.map((opt, index) => {
                 const count = scanCountsByCoat.get(opt.id) ?? 0;
                 const discovered = count > 0;
-                const isLast = index === options.length - 1;
+                const isLast = index === orderedOptions.length - 1;
                 return (
                   <View key={opt.id} className="min-w-0 flex-1">
                     <View className="relative" style={{ minHeight: SEGMENT_HEIGHT }}>
@@ -152,10 +169,10 @@ export function BreedCommonColours({ breedId, rarity, scans, isUnlocked }: Props
           </View>
 
           <View className="mt-2 flex-row">
-            {options.map((opt, index) => {
+            {orderedOptions.map((opt, index) => {
               const count = scanCountsByCoat.get(opt.id) ?? 0;
               const discovered = count > 0;
-              const isLast = index === options.length - 1;
+              const isLast = index === orderedOptions.length - 1;
               return (
                 <View
                   key={`${opt.id}-meta`}

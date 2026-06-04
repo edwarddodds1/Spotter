@@ -65,7 +65,41 @@ function applyPersistedSlice(persisted: Persisted) {
     useSpotterStore.setState((current) => {
       const friends = safeArr<UserProfile>(persisted.friends, current.friends);
       const leagues = safeArr<League>(persisted.leagues, current.leagues);
-      const scans = safeArr<ScanRecord>(persisted.scans, current.scans);
+      const rawScans = safeArr<ScanRecord>(persisted.scans, current.scans);
+      /**
+       * Hydration sanitization for photoUrls that can NEVER be a valid value
+       * to render or to push to the server:
+       *
+       * 1. `{userId}/{scan.id}.jpg` (no scheme) — historical corruption from
+       *    a sync bug. Clear it; `pullAndSyncUserScans` will restore the
+       *    real path from the server.
+       * 2. `blob:` / `data:` URIs — only valid for the document that
+       *    created them, so they're dead after a page reload. The pending
+       *    photo-upload queue still has the bytes if the user closed the
+       *    tab mid-upload; if not, the photo is unrecoverable and the UI
+       *    should show "Photo missing" rather than a permanently broken
+       *    `<Image>`.
+       * 3. `file:` / `content:` URIs — native filesystem references that
+       *    may or may not still be valid; we keep them on native (where
+       *    they typically survive), but clear them on web (where they
+       *    never can be).
+       */
+      const sanitizePhotoUrl = (s: ScanRecord): ScanRecord => {
+        const url = typeof s.photoUrl === "string" ? s.photoUrl.trim() : "";
+        if (!url) return s;
+        if (url === `${s.userId}/${s.id}.jpg`) return { ...s, photoUrl: "" };
+        if (url.startsWith("blob:") || url.startsWith("data:")) {
+          return { ...s, photoUrl: "" };
+        }
+        if (
+          Platform.OS === "web" &&
+          (url.startsWith("file:") || url.startsWith("content:"))
+        ) {
+          return { ...s, photoUrl: "" };
+        }
+        return s;
+      };
+      const scans = rawScans.map(sanitizePhotoUrl);
       const demoScanIds = new Set([
         "scan-1",
         "scan-2",

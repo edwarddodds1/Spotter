@@ -28,6 +28,8 @@ import { BreedSelectorScreen } from "@/features/spot/BreedSelectorScreen";
 import { DogNamingScreen } from "@/features/spot/DogNamingScreen";
 import { SpotCameraScreen } from "@/features/spot/SpotCameraScreen";
 import type { RootStackParamList, TabParamList } from "@/core/navigation/types";
+import { notificationsForUser } from "@/lib/notifications";
+import { palette } from "@/constants/theme";
 import { useSpotterStore } from "@/store/useSpotterStore";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -41,8 +43,11 @@ function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
   const { width } = useLayoutWindowDimensions();
   const compactTabs = width < 380;
   const pendingFriendRequests = useSpotterStore((state) => state.pendingFriendRequests);
-  const notifications = useSpotterStore((state) => state.notifications);
-  const hasUnreadNotification = notifications.some((n) => n.readAt === null);
+  const currentUserId = useSpotterStore((state) => state.currentUser.id);
+  const allNotifications = useSpotterStore((state) => state.notifications);
+  const hasUnreadNotification = notificationsForUser(allNotifications, currentUserId).some(
+    (n) => n.readAt === null,
+  );
   const hasSocialNotification = pendingFriendRequests.length > 0 || hasUnreadNotification;
   const iconByRoute: Record<keyof TabParamList, keyof typeof MaterialCommunityIcons.glyphMap> = {
     DogdexTab: "dog",
@@ -66,8 +71,8 @@ function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
         headerShown: false,
         sceneStyle: { paddingHorizontal: webEdgeInset },
         tabBarStyle: {
-          backgroundColor: isDark ? "#0b0b0b" : "#ffffff",
-          borderTopColor: isDark ? "#2a2a2a" : "#d4d4d4",
+          backgroundColor: isDark ? palette.ink : "#ffffff",
+          borderTopColor: isDark ? palette.border : "#d4d4d4",
           height: compactTabs ? 74 : 84,
           paddingBottom: compactTabs ? 6 : 8,
           paddingTop: compactTabs ? 6 : 8,
@@ -108,12 +113,12 @@ function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
                 width: route.name === "SpotTab" ? (compactTabs ? 48 : 54) : compactTabs ? 28 : 30,
                 height: route.name === "SpotTab" ? (compactTabs ? 48 : 54) : compactTabs ? 28 : 30,
                 borderRadius: 26,
-                backgroundColor: route.name === "SpotTab" ? (isDark ? "#ffffff" : "#0b0b0b") : "transparent",
+                backgroundColor: route.name === "SpotTab" ? (isDark ? "#ffffff" : palette.ink) : "transparent",
                 alignItems: "center",
                 justifyContent: "center",
                 marginTop: route.name === "SpotTab" ? (compactTabs ? -10 : -16) : 0,
                 borderWidth: route.name === "SpotTab" ? 2 : 0,
-                borderColor: route.name === "SpotTab" ? (isDark ? "#0b0b0b" : "#ffffff") : "transparent",
+                borderColor: route.name === "SpotTab" ? (isDark ? palette.ink : "#ffffff") : "transparent",
               }}
             >
               <MaterialCommunityIcons
@@ -122,7 +127,7 @@ function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
                 color={
                   route.name === "SpotTab"
                     ? isDark
-                      ? "#0b0b0b"
+                      ? palette.ink
                       : "#ffffff"
                     : focused
                       ? isDark
@@ -144,7 +149,7 @@ function Tabs({ themeMode }: { themeMode: "light" | "dark" }) {
                     borderRadius: 99,
                     backgroundColor: "#ef4444",
                     borderWidth: 1.5,
-                    borderColor: isDark ? "#0b0b0b" : "#ffffff",
+                    borderColor: isDark ? palette.ink : "#ffffff",
                   }}
                 />
               ) : null}
@@ -169,10 +174,10 @@ export function AppNavigator() {
     ...DefaultTheme,
     colors: {
       ...DefaultTheme.colors,
-      background: isDark ? "#0b0b0b" : "#ffffff",
-      card: isDark ? "#0b0b0b" : "#ffffff",
+      background: isDark ? palette.ink : "#ffffff",
+      card: isDark ? palette.ink : "#ffffff",
       text: isDark ? "#ffffff" : "#111111",
-      border: isDark ? "#2a2a2a" : "#d4d4d4",
+      border: isDark ? palette.border : "#d4d4d4",
       primary: isDark ? "#ffffff" : "#111111",
     },
   };
@@ -184,10 +189,10 @@ export function AppNavigator() {
           screenOptions={{
             headerShown: true,
             headerShadowVisible: false,
-            headerStyle: { backgroundColor: isDark ? "#0b0b0b" : "#ffffff" },
+            headerStyle: { backgroundColor: isDark ? palette.ink : "#ffffff" },
             headerTintColor: isDark ? "#ffffff" : "#111111",
             contentStyle: {
-              backgroundColor: isDark ? "#0b0b0b" : "#ffffff",
+              backgroundColor: isDark ? palette.ink : "#ffffff",
               paddingHorizontal: webEdgeInset,
             },
             headerBackVisible: true,
@@ -200,7 +205,7 @@ export function AppNavigator() {
               headerShown: false,
               contentStyle: {
                 flex: 1,
-                backgroundColor: isDark ? "#0b0b0b" : "#ffffff",
+                backgroundColor: isDark ? palette.ink : "#ffffff",
                 paddingHorizontal: 0,
               },
             }}
@@ -215,7 +220,7 @@ export function AppNavigator() {
             options={{
               headerShown: false,
               contentStyle: {
-                backgroundColor: isDark ? "#0b0b0b" : "#f4f4f5",
+                backgroundColor: isDark ? palette.ink : "#f4f4f5",
                 paddingHorizontal: 0,
               },
             }}
@@ -258,7 +263,7 @@ export function AppNavigator() {
           />
           <Stack.Screen name="Friends" component={FriendsScreen} options={{ title: "Friends" }} />
           <Stack.Screen name="DogProfile" component={DogProfileScreen} options={{ title: "Dog Profile" }} />
-          <Stack.Screen name="UserProfile" component={UserProfileScreen} options={{ title: "Profile" }} />
+          <Stack.Screen name="UserProfile" component={UserProfileScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: "Notifications" }} />
           <Stack.Screen name="TopDogs" component={TopDogsScreen} options={{ title: "Top Dogs" }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: "Settings" }} />

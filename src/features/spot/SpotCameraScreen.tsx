@@ -9,7 +9,6 @@ import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { runOnJS } from "react-native-reanimated";
 
 import { SpotPhotoEditorModal } from "@/components/SpotPhotoEditorModal";
-import { isDemoModeAllowed } from "@/lib/pilotFeatures";
 import { reverseGeocodeForSpot } from "@/lib/spotLocationLabel";
 import { useSpotterStore } from "@/store/useSpotterStore";
 import type { TabParamList } from "@/core/navigation/types";
@@ -234,7 +233,6 @@ export function SpotCameraScreen({ navigation }: Props) {
 
   if (!permission.granted) {
     const isBlocked = permission.canAskAgain === false;
-    const showDemoPhoto = isDemoModeAllowed();
     return (
       <View className="flex-1 justify-end bg-zinc-950 px-6 pb-20">
         <Text className="text-4xl font-bold text-white">Spot a dog</Text>
@@ -257,27 +255,6 @@ export function SpotCameraScreen({ navigation }: Props) {
         {isWeb ? (
           <Pressable onPress={() => void pickUploadPhoto()} className="mt-3 rounded-2xl border border-white/30 px-4 py-4">
             <Text className="text-center font-semibold text-white">Upload photo</Text>
-          </Pressable>
-        ) : null}
-        {showDemoPhoto ? (
-          <Pressable
-            onPress={() => {
-              setSpotDraft({
-                photoUri:
-                  "https://images.unsplash.com/photo-1518717758536-85ae29035b6d?auto=format&fit=crop&w=1000&q=80",
-                locationLat: null,
-                locationLng: null,
-                locationLabel: null,
-                coatColourId: null,
-                coatColourNote: null,
-                spotComment: null,
-                isPrivate: false,
-              });
-              navigation.getParent()?.navigate("BreedSelector");
-            }}
-            className="mt-3 rounded-2xl border border-white/30 px-4 py-4"
-          >
-            <Text className="text-center font-semibold text-white">Use demo photo</Text>
           </Pressable>
         ) : null}
       </View>

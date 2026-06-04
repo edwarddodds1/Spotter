@@ -17,6 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.spotter.dog",
       "buildNumber": "2",
+      "icon": "./assets/icon-ios.png",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "Spotter uses your camera so you can photograph dogs you encounter.",
@@ -37,8 +38,7 @@
         "android.permission.CAMERA",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.READ_MEDIA_IMAGES"
       ]
     },
     "web": {
@@ -50,7 +50,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Spotter uses your camera so you can photograph dogs you encounter."
+          "cameraPermission": "Spotter uses your camera so you can photograph dogs you encounter.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       [

@@ -76,7 +76,7 @@ export class RootErrorBoundary extends Component<Props, State> {
           <Pressable
             onPress={this.clearAndReload}
             style={{
-              backgroundColor: "#BA7517",
+              backgroundColor: "#4a7c4a",
               paddingHorizontal: 14,
               paddingVertical: 10,
               borderRadius: 8,

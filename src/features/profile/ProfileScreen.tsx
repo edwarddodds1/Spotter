@@ -32,6 +32,9 @@ import {
   badgeCategoryLabel,
   badgeDisplayOrder,
   badgesByCategory,
+  computeLongestScanStreak,
+  nextBadgeHintForCategory,
+  type BadgeProgressStats,
 } from "@/constants/badges";
 import { palette } from "@/constants/theme";
 import { deleteSpot, updateScanPrivacy } from "@/features/spot/spotService";
@@ -55,6 +58,7 @@ export function ProfileScreen() {
   const leagues = useSpotterStore((state) => state.leagues);
   const weeklyPoints = useSpotterStore((state) => state.weeklyPoints);
   const friends = useSpotterStore((state) => state.friends);
+  const feedReactions = useSpotterStore((state) => state.feedReactions);
   const setAvatar = useSpotterStore((state) => state.setAvatar);
   const setUsername = useSpotterStore((state) => state.setUsername);
   const setUserLocation = useSpotterStore((state) => state.setUserLocation);
@@ -73,6 +77,27 @@ export function ProfileScreen() {
   const collectedCount = collectedBreedIds.size;
   const badgeUnlockedSet = useMemo(() => new Set<BadgeType>(earnedBadges), [earnedBadges]);
   const grouped = useMemo(() => badgesByCategory(), []);
+
+  const badgeProgressStats = useMemo((): BadgeProgressStats => {
+    const userScans = scans.filter((s) => s.userId === currentUser.id && !s.isPendingBreed);
+    const myScanIds = new Set(scans.filter((s) => s.userId === currentUser.id).map((s) => s.id));
+    const now = Date.now();
+    const hasEndedLeague = leagues.some((league) => {
+      if (!league.endsAt) return false;
+      const ended = Date.parse(league.endsAt);
+      return Number.isFinite(ended) && ended <= now;
+    });
+    return {
+      totalScans: userScans.length,
+      distinctBreeds: new Set(
+        userScans.map((s) => s.breedId).filter((id): id is string => Boolean(id)),
+      ).size,
+      longestStreakDays: computeLongestScanStreak(userScans.map((s) => s.scannedAt)),
+      friendsCount: friends.length,
+      hasEndedLeague,
+      likesReceived: feedReactions.filter((r) => myScanIds.has(r.scanId)).length,
+    };
+  }, [scans, currentUser.id, friends.length, leagues, feedReactions]);
 
   const mySpotsChronological = useMemo(
     () =>
@@ -333,30 +358,35 @@ export function ProfileScreen() {
           <Text className="text-4xl font-black text-black dark:text-white">Profile</Text>
           <Text className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Your stats, achievements, and journal.</Text>
         </View>
-        <Pressable
-          onPress={() => navigation.navigate("Settings")}
-          className="rounded-full bg-zinc-100 p-2.5 dark:bg-zinc-900"
-          accessibilityRole="button"
-          accessibilityLabel="Open settings"
-        >
-          <MaterialCommunityIcons name="cog-outline" size={22} color={palette.amber} />
-        </Pressable>
+        <View className="flex-row items-center gap-2">
+          <Pressable
+            onPress={isEditingProfile ? cancelProfileEdit : openProfileEdit}
+            className="rounded-full bg-zinc-100 p-2.5 dark:bg-zinc-900"
+            accessibilityRole="button"
+            accessibilityLabel={isEditingProfile ? "Stop editing profile" : "Edit profile"}
+            accessibilityState={{ selected: isEditingProfile }}
+          >
+            <MaterialCommunityIcons
+              name={isEditingProfile ? "close" : "pencil"}
+              size={22}
+              color={palette.amber}
+            />
+          </Pressable>
+          <Pressable
+            onPress={() => navigation.navigate("Settings")}
+            className="rounded-full bg-zinc-100 p-2.5 dark:bg-zinc-900"
+            accessibilityRole="button"
+            accessibilityLabel="Open settings"
+          >
+            <MaterialCommunityIcons name="cog-outline" size={22} color={palette.amber} />
+          </Pressable>
+        </View>
       </View>
 
       {/* Hero */}
       <View className="px-4">
         <View className="overflow-hidden rounded-3xl border border-zinc-200/80 bg-white shadow-sm dark:border-border dark:bg-card dark:shadow-none">
           <View className="border-b border-zinc-100 px-5 pb-5 pt-6 dark:border-border">
-            <View className="mb-3 flex-row justify-end">
-              <Pressable
-                onPress={isEditingProfile ? cancelProfileEdit : openProfileEdit}
-                className="rounded-full bg-zinc-100 p-2 dark:bg-zinc-900"
-                accessibilityRole="button"
-                accessibilityLabel={isEditingProfile ? "Cancel profile editing" : "Edit profile"}
-              >
-                <MaterialCommunityIcons name={isEditingProfile ? "close" : "pencil"} size={14} color={palette.amber} />
-              </Pressable>
-            </View>
             <View className="flex-row items-center gap-4">
               <UserAvatar
                 username={currentUser.username}
@@ -415,11 +445,9 @@ export function ProfileScreen() {
                     </View>
                   </View>
                 ) : (
-                  <View className="flex-row items-center gap-2">
-                    <Text className="flex-1 text-xl font-bold text-black dark:text-white" numberOfLines={1}>
-                      {currentUser.username}
-                    </Text>
-                  </View>
+                  <Text className="text-xl font-bold text-black dark:text-white" numberOfLines={1}>
+                    {currentUser.username}
+                  </Text>
                 )}
                 {!isEditingProfile ? (
                   <View className="mt-1 flex-row items-center gap-2">
@@ -592,17 +620,34 @@ export function ProfileScreen() {
           {BADGE_CATEGORIES.map((category) => {
             const ids = grouped[category];
             if (ids.length === 0) return null;
+            const nextHint = nextBadgeHintForCategory(category, badgeUnlockedSet, badgeProgressStats);
             return (
               <View
                 key={category}
                 className="mb-3 rounded-3xl border border-zinc-200 bg-white px-3 py-3 dark:border-border dark:bg-card"
               >
-                <Text className="text-sm font-bold uppercase tracking-wider text-black dark:text-white">
-                  {badgeCategoryLabel[category]}
-                </Text>
-                <Text className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
-                  {badgeCategoryBlurb[category]}
-                </Text>
+                <View className="flex-row items-start justify-between gap-3">
+                  <View className="min-w-0 flex-1">
+                    <Text className="text-sm font-bold uppercase tracking-wider text-black dark:text-white">
+                      {badgeCategoryLabel[category]}
+                    </Text>
+                    <Text className="mt-0.5 text-[11px] text-zinc-500 dark:text-zinc-400">
+                      {badgeCategoryBlurb[category]}
+                    </Text>
+                  </View>
+                  {nextHint ? (
+                    <Text
+                      className="max-w-[46%] text-right text-[11px] font-semibold leading-4 text-amber"
+                      numberOfLines={2}
+                    >
+                      {nextHint}
+                    </Text>
+                  ) : (
+                    <Text className="text-right text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                      All earned
+                    </Text>
+                  )}
+                </View>
                 <View className="mt-3 flex-row justify-between">
                   {ids.map((badge) => (
                     <View key={badge} style={{ width: "23%" }}>

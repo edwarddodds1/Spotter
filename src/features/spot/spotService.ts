@@ -1,6 +1,19 @@
+import {
+  setLocalPhotoPreview,
+  clearLocalPhotoPreview,
+} from "@/lib/photoUpload/localPhotoPreviews";
+import {
+  enqueuePendingPhotoUpload,
+  dequeuePendingPhotoUpload,
+} from "@/lib/photoUpload/pendingPhotoUploads";
+import { retryOnePendingPhotoUpload } from "@/lib/photoUpload/retryPendingUploads";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase/client";
 import { invalidateScansSignedUrl, parseScansStoragePath } from "@/lib/supabase/scanPhotoUrl";
-import { uploadScanPhoto } from "@/lib/supabase/storage";
+import {
+  fetchImageBytesFromUri,
+  uploadScanPhoto,
+  uploadScanPhotoBytes,
+} from "@/lib/supabase/storage";
 import { useSpotterStore } from "@/store/useSpotterStore";
 
 function normalizeName(value: string) {
@@ -21,9 +34,19 @@ export async function saveSpot(input: {
   isPrivate?: boolean;
 }) {
   const db = supabase as any;
+
+  /**
+   * STEP 1 — Persist with EMPTY photoUrl, never a `blob:`/`file:` URL.
+   *
+   * The local store's `photoUrl` is the source of truth for cross-session
+   * persistence and DB writes. `blob:` URLs are tied to the page session and
+   * silently break on reload; `file:` URIs can be cleaned up by the OS. We
+   * keep the volatile URI in a separate in-memory preview map so the user
+   * still sees their just-captured photo instantly.
+   */
   const result = useSpotterStore.getState().completeScan({
     breedId: input.breedId,
-    photoUrl: input.photoUri,
+    photoUrl: "",
     dogName: input.dogName,
     locationLat: input.locationLat,
     locationLng: input.locationLng,
@@ -33,13 +56,44 @@ export async function saveSpot(input: {
     spotComment: input.spotComment,
     isPrivate: input.isPrivate ?? false,
   });
+  setLocalPhotoPreview(result.scan.id, input.photoUri);
 
   if (!isSupabaseConfigured) {
     return result;
   }
 
   try {
-    const uploadedUrl = await uploadScanPhoto(input.userId, result.scan.id, input.photoUri);
+    /**
+     * STEP 2 — Read the photo bytes ONCE, before the URI can expire (e.g.
+     * the user refreshes the page mid-upload). The bytes go into the
+     * pending-upload queue so retries can happen across sessions even if
+     * the original blob: URL is gone.
+     */
+    let pendingEnqueued = false;
+    let bytes: ArrayBuffer | null = null;
+    let mimeType = "image/jpeg";
+    try {
+      const fetched = await fetchImageBytesFromUri(input.photoUri);
+      bytes = fetched.bytes;
+      mimeType = fetched.mimeType || "image/jpeg";
+      await enqueuePendingPhotoUpload({
+        scanId: result.scan.id,
+        userId: input.userId,
+        bytes,
+        mimeType,
+      });
+      pendingEnqueued = true;
+    } catch (fetchErr) {
+      console.warn("[saveSpot] could not capture photo bytes for retry:", fetchErr);
+    }
+
+    /**
+     * STEP 3 — Upload from the captured bytes if we have them; fall back to
+     * uploading from the URI directly otherwise.
+     */
+    const uploadedUrl = bytes
+      ? await uploadScanPhotoBytes(input.userId, result.scan.id, bytes, mimeType)
+      : await uploadScanPhoto(input.userId, result.scan.id, input.photoUri);
 
     let dogProfileId = result.dogProfile?.id ?? null;
     const trimmedName = input.dogName?.trim();
@@ -105,13 +159,21 @@ export async function saveSpot(input: {
           : s,
       ),
     }));
+    if (pendingEnqueued) await dequeuePendingPhotoUpload(result.scan.id);
+    clearLocalPhotoPreview(result.scan.id);
 
     await db
       .from("users")
       .update({ total_scans: useSpotterStore.getState().currentUser.totalScans })
       .eq("id", input.userId);
   } catch (error) {
-    // Keep spot flow unblocked when remote sync fails (e.g., missing storage bucket or strict RLS).
+    /**
+     * STEP 4 (failure path) — keep the scan local with EMPTY `photoUrl`. The
+     * queue still has the bytes (if we managed to capture them), so the
+     * boot-time retry or a manual retry will eventually push the photo. The
+     * UI shows an "Uploading…" overlay for pending entries instead of the
+     * misleading "Photo unavailable / tap to retry" copy.
+     */
     console.warn("[saveSpot] Supabase sync failed; kept local scan:", error);
   }
 
@@ -386,16 +448,44 @@ export async function replaceScanPhoto(scanId: string, newLocalUri: string) {
     throw new Error("Could not find that scan on this device.");
   }
 
+  /**
+   * Show the new photo immediately via the in-memory preview map so the user
+   * gets instant feedback while the upload runs.
+   */
+  setLocalPhotoPreview(scanId, newLocalUri);
+
   if (!isSupabaseConfigured) {
     useSpotterStore.getState().bumpPhotoVersion(scanId);
+    // Local-only mode: keep the volatile URI as the photoUrl (no DB to
+    // corrupt). Persistence will sanitize it on next hydration.
     useSpotterStore.setState((state) => ({
       scans: state.scans.map((s) => (s.id === scanId ? { ...s, photoUrl: newLocalUri } : s)),
     }));
     return;
   }
 
+  let pendingEnqueued = false;
+  let bytes: ArrayBuffer | null = null;
+  let mimeType = "image/jpeg";
   try {
-    const uploadedPath = await uploadScanPhoto(scan.userId, scan.id, newLocalUri);
+    const fetched = await fetchImageBytesFromUri(newLocalUri);
+    bytes = fetched.bytes;
+    mimeType = fetched.mimeType || "image/jpeg";
+    await enqueuePendingPhotoUpload({
+      scanId,
+      userId: scan.userId,
+      bytes,
+      mimeType,
+    });
+    pendingEnqueued = true;
+  } catch (fetchErr) {
+    console.warn("[replaceScanPhoto] could not capture photo bytes for retry:", fetchErr);
+  }
+
+  try {
+    const uploadedPath = bytes
+      ? await uploadScanPhotoBytes(scan.userId, scan.id, bytes, mimeType)
+      : await uploadScanPhoto(scan.userId, scan.id, newLocalUri);
 
     // Invalidate any cached signed URL pointing at this object so the next
     // resolution generates a fresh one with new content.
@@ -419,8 +509,20 @@ export async function replaceScanPhoto(scanId: string, newLocalUri: string) {
           : s,
       ),
     }));
+    if (pendingEnqueued) await dequeuePendingPhotoUpload(scanId);
+    clearLocalPhotoPreview(scanId);
   } catch (err) {
     console.warn("[replaceScanPhoto] sync error:", err);
+    /**
+     * Don't update photoUrl on failure — the old photo (if any) is still on
+     * the server and the queue will retry the new one in the background.
+     * Surfacing the error lets the caller decide whether to show a toast.
+     */
+    if (pendingEnqueued) {
+      // Kick off one more attempt in the background so a transient network
+      // hiccup doesn't strand the new photo until the next app boot.
+      void retryOnePendingPhotoUpload(scanId);
+    }
     const message =
       err instanceof Error ? err.message : "Couldn't update the photo. Please try again.";
     throw new Error(message);

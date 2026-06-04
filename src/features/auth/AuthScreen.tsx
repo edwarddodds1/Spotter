@@ -11,23 +11,21 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 import { AppMark } from "@/components/AppMark";
 import { friendlyAuthErrorMessage } from "@/lib/authErrorMessages";
-import { isDemoModeAllowed } from "@/lib/pilotFeatures";
-import { signInWithGoogle } from "@/lib/supabase/auth";
+import { signInWithApple, signInWithGoogle } from "@/lib/supabase/auth";
 import { explainAuthNetworkFailure, isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { ensureUserProfile } from "@/lib/supabase/profile";
 import { useAuthStore } from "@/store/useAuthStore";
 
 export function AuthScreen() {
   const insets = useSafeAreaInsets();
-  const enableDemoMode = useAuthStore((state) => state.enableDemoMode);
   const authRedirectNotice = useAuthStore((state) => state.authRedirectNotice);
   const setAuthRedirectNotice = useAuthStore((state) => state.setAuthRedirectNotice);
   const setAuthSession = useAuthStore((state) => state.setSession);
   const setAuthReady = useAuthStore((state) => state.setReady);
-  const showDemoEntry = isDemoModeAllowed();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
@@ -226,6 +224,23 @@ export function AuthScreen() {
     }
   };
 
+  const handleAppleAuth = async () => {
+    try {
+      clearAuthMessages();
+      if (!isSupabaseConfigured) {
+        showAuthError(
+          "Supabase is not configured. Set Supabase_URL and Supabase_Publishable_Key (or EXPO_PUBLIC_* / SUPABASE_*), then rebuild.",
+        );
+        return;
+      }
+
+      await signInWithApple();
+    } catch (error) {
+      const rawMessage = error instanceof Error ? error.message : "Unknown error";
+      showAuthError(rawMessage);
+    }
+  };
+
   const authScrollContent = (
     <>
       <View className="items-center">
@@ -315,11 +330,29 @@ export function AuthScreen() {
             <Text className="text-sm font-medium text-emerald-700 dark:text-emerald-400">{authInfo}</Text>
           ) : null}
           {authError ? <Text className="text-sm font-medium text-red-600 dark:text-red-400">{authError}</Text> : null}
+          <View className="my-1 flex-row items-center gap-3">
+            <View className="h-px flex-1 bg-zinc-200 dark:bg-border" />
+            <Text className="text-xs font-medium uppercase tracking-wide text-zinc-400">or</Text>
+            <View className="h-px flex-1 bg-zinc-200 dark:bg-border" />
+          </View>
+          <Pressable
+            onPress={handleAppleAuth}
+            disabled={loading}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Apple"
+            className="flex-row items-center justify-center gap-2 rounded-2xl bg-black px-4 py-3 disabled:opacity-70"
+          >
+            <MaterialCommunityIcons name="apple" size={18} color="#ffffff" style={{ marginTop: -1 }} />
+            <Text className="text-center font-semibold text-white">Continue with Apple</Text>
+          </Pressable>
           <Pressable
             onPress={handleGoogleAuth}
             disabled={loading}
-            className="rounded-2xl border border-zinc-200 px-4 py-3 dark:border-border disabled:opacity-70"
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Google"
+            className="flex-row items-center justify-center gap-2 rounded-2xl border border-zinc-200 px-4 py-3 dark:border-border disabled:opacity-70"
           >
+            <MaterialCommunityIcons name="google" size={18} color="#71717a" />
             <Text className="text-center font-semibold text-black dark:text-white">Continue with Google</Text>
           </Pressable>
           <Pressable
@@ -333,16 +366,10 @@ export function AuthScreen() {
               {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
             </Text>
           </Pressable>
-          {showDemoEntry ? (
-            <Pressable onPress={enableDemoMode} disabled={loading}>
-              <Text className="text-center text-sm text-zinc-600 dark:text-zinc-400">
-                Continue in demo mode
-              </Text>
-            </Pressable>
-          ) : null}
         </View>
         <Text className="mt-4 px-2 text-center text-xs leading-5 text-zinc-500 dark:text-zinc-500">
-          By continuing you agree to Spotter&apos;s pilot Terms and Privacy notice — full text inside the app under Settings.
+          By continuing you agree to Spotter&apos;s Terms and Privacy Policy, including a zero-tolerance
+          policy for objectionable content and abusive behaviour. Full text is in the app under Settings.
         </Text>
     </>
   );

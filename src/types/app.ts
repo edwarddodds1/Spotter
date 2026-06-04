@@ -181,7 +181,19 @@ export interface FeedComment {
   createdAt: string;
 }
 
-export type NotificationKind = "friend_request" | "friend_request_accepted";
+export type NotificationKind =
+  | "friend_request"
+  | "friend_request_accepted"
+  | "league_invite";
+
+/**
+ * Extra payload attached to certain notification kinds. Stored locally only
+ * for the pilot; once a server schema lands these will move to a JSONB column.
+ */
+export interface NotificationContext {
+  leagueId?: string;
+  leagueName?: string;
+}
 
 /** In-app notification row owned by `user_id` (the recipient). */
 export interface AppNotification {
@@ -193,6 +205,8 @@ export interface AppNotification {
   /** ISO timestamp the recipient marked it read, or null if still unread. */
   readAt: string | null;
   createdAt: string;
+  /** Optional kind-specific payload (e.g. league_invite carries leagueId/Name). */
+  context?: NotificationContext;
 }
 
 /** Server-persisted record of one user unlocking one badge. Drives feed cards. */

@@ -172,6 +172,11 @@ export function BreedDetailScreen({ route, navigation }: Props) {
   );
 
   const heroUri = breed ? resolveBreedHeroImageUri(breed) : null;
+  const [heroErrored, setHeroErrored] = useState(false);
+  useEffect(() => {
+    setHeroErrored(false);
+  }, [heroUri]);
+  const heroVisible = Boolean(heroUri) && !heroErrored;
   const statRatings = useMemo(() => {
     if (!breed) return null;
     return breed.statRatings ?? getBreedStatRatings(breed.id);
@@ -259,7 +264,7 @@ export function BreedDetailScreen({ route, navigation }: Props) {
       >
         <Animated.View style={{ transform: [{ translateX: slideAnim }] }}>
           <View style={{ height: HERO_HEIGHT }} className="relative w-full overflow-hidden bg-zinc-900">
-            {heroUri ? (
+            {heroVisible && heroUri ? (
               <>
                 {/* Blurred, cover-filled backdrop so the hero never has empty bars. */}
                 <Image
@@ -268,12 +273,14 @@ export function BreedDetailScreen({ route, navigation }: Props) {
                   resizeMode="cover"
                   blurRadius={30}
                   style={{ opacity: 0.55 }}
+                  onError={() => setHeroErrored(true)}
                 />
                 {/* Sharp, contained foreground so the whole dog is always visible. */}
                 <Image
                   source={{ uri: heroUri }}
                   className="absolute inset-0 size-full"
                   resizeMode="contain"
+                  onError={() => setHeroErrored(true)}
                 />
               </>
             ) : (
@@ -444,27 +451,34 @@ export function BreedDetailScreen({ route, navigation }: Props) {
                 ) : null;
 
               const funSlot = funFact ? (
-                <View
-                  className="min-h-0 flex-1 rounded-3xl border border-amber-200/80 bg-amber-50/90 p-5 dark:border-amber-900/50 dark:bg-amber-950/40"
-                  style={shadowStyle}
-                >
+                <View className={`${cardClass} flex-1`} style={shadowStyle}>
                   <View className="flex-row items-center gap-2">
-                    <MaterialCommunityIcons name="star-four-points" size={22} color="#b45309" />
-                    <Text className="text-lg font-bold text-amber-950 dark:text-amber-100">Fun fact</Text>
+                    <MaterialCommunityIcons
+                      name="star-four-points"
+                      size={22}
+                      color={breedProfileAccent.primary}
+                    />
+                    <Text className="text-lg font-bold text-black dark:text-white">Fun fact</Text>
                   </View>
-                  <Text className="mt-3 text-base leading-6 text-amber-950/90 dark:text-amber-100/90">{funFact}</Text>
+                  <Text className="mt-3 text-base leading-6 text-zinc-700 dark:text-zinc-300">
+                    {funFact}
+                  </Text>
                 </View>
               ) : showAdminEdit ? (
                 <Pressable
                   onPress={() => navigation.navigate("AdminBreedEditor", { breedId: breed.id })}
-                  className="flex-1 rounded-3xl border border-dashed border-amber-700/45 bg-amber-50/60 p-5 dark:border-amber-600/45 dark:bg-amber-950/30"
+                  className={`${cardClass} flex-1 border-dashed border-zinc-400/80 dark:border-zinc-500`}
                   style={shadowStyle}
                 >
                   <View className="flex-row items-center gap-2">
-                    <MaterialCommunityIcons name="pencil-outline" size={22} color="#b45309" />
-                    <Text className="text-lg font-bold text-amber-950 dark:text-amber-100">Fun fact</Text>
+                    <MaterialCommunityIcons
+                      name="pencil-outline"
+                      size={22}
+                      color={breedProfileAccent.primary}
+                    />
+                    <Text className="text-lg font-bold text-black dark:text-white">Fun fact</Text>
                   </View>
-                  <Text className="mt-2 text-sm leading-5 text-amber-900/85 dark:text-amber-200/85">
+                  <Text className="mt-2 text-sm leading-5 text-zinc-600 dark:text-zinc-400">
                     None yet for this breed. Tap to add (admin).
                   </Text>
                 </Pressable>

@@ -24,9 +24,9 @@ export const PRIVACY_SECTIONS: { heading: string; body: string }[] = [
       "Scan photos are stored in a private bucket and shown to you and (if you set a spot to public) other users. Deleting a spot in the app removes the row and best-effort removes the photo.",
   },
   {
-    heading: "Pilot notice",
+    heading: "Deleting your account",
     body:
-      "Spotter is in a closed pilot. Data, features, and policies can change without notice. Sign-in remains required so you can always delete your account by emailing the team.",
+      "You can permanently delete your account and all associated data at any time from Settings → Delete account. Deletion removes your profile, scans, and photos and cannot be undone.",
   },
   {
     heading: "Contact",
@@ -46,12 +46,17 @@ export const TERMS_SECTIONS: { heading: string; body: string }[] = [
   {
     heading: "Your content",
     body:
-      "Only upload photos you have the right to share. Don't upload images of people without consent, or anything illegal, hateful, or harmful. Public spots are visible to other pilot users.",
+      "Only upload photos you have the right to share. Don't upload images of people without consent, or anything illegal, hateful, or harmful. Public spots are visible to other users.",
+  },
+  {
+    heading: "Objectionable content & conduct",
+    body:
+      "There is zero tolerance for objectionable content or abusive behaviour. Don't post content that is sexual, hateful, violent, harassing, or otherwise objectionable, and don't harass other users. You can report any post or user from the menu on their content, and block users from their profile. We review reports and may remove content and suspend or terminate accounts, typically within 24 hours of a report.",
   },
   {
     heading: "Accounts",
     body:
-      "Keep your password private. Tell us if you think your account has been accessed. We may suspend accounts that violate these terms.",
+      "Keep your password private. Tell us if you think your account has been accessed. We may suspend or remove accounts that violate these terms. You can delete your account at any time from Settings.",
   },
   {
     heading: "Limitation of liability",

@@ -1,5 +1,10 @@
+import {
+  enqueuePendingPhotoUpload,
+  getPendingPhotoUpload,
+} from "@/lib/photoUpload/pendingPhotoUploads";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
-import { uploadScanPhoto } from "@/lib/supabase/storage";
+import { parseScansStoragePath } from "@/lib/supabase/scanPhotoUrl";
+import { fetchImageBytesFromUri, uploadScanPhoto } from "@/lib/supabase/storage";
 import type { Database } from "@/lib/supabase/types";
 import type { DogProfile, ScanRecord } from "@/types/app";
 
@@ -48,14 +53,63 @@ function scanToRow(scan: ScanRecord) {
   };
 }
 
+/**
+ * Decide what `photo_url` value to write to the DB for a given local scan.
+ *
+ * Returns:
+ * - a Supabase storage path (`{userId}/{scanId}.jpg`) when the photo is
+ *   already uploaded or this call uploaded it successfully
+ * - an empty string when the photo couldn't be uploaded (the row will still
+ *   land but with no photo — the pending-upload queue is responsible for
+ *   recovering it). NEVER returns a `blob:`/`file:`/`data:` URI, which
+ *   previously poisoned the DB whenever an upload failed mid-flight.
+ * - the original https:// URL only when it's a non-Supabase remote CDN URL
+ *   (legacy data from seed scripts).
+ */
 async function resolvePhotoUrlForUpload(userId: string, scan: ScanRecord): Promise<string> {
-  if (scan.photoUrl.startsWith("http://") || scan.photoUrl.startsWith("https://")) {
-    return scan.photoUrl;
-  }
+  const u = scan.photoUrl?.trim() ?? "";
+  if (!u) return "";
+
+  if (parseScansStoragePath(u)) return u;
+
+  // Genuine remote CDN URLs (e.g. seed images) — pass through, never re-upload.
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+
+  // Local / volatile URI: must be uploaded before it can be written to the DB.
+  const isLocal =
+    u.startsWith("blob:") ||
+    u.startsWith("data:") ||
+    u.startsWith("file:") ||
+    u.startsWith("content:") ||
+    u.startsWith("/");
+
+  if (!isLocal) return "";
+
   try {
-    return await uploadScanPhoto(userId, scan.id, scan.photoUrl);
-  } catch {
-    return scan.photoUrl;
+    return await uploadScanPhoto(userId, scan.id, u);
+  } catch (err) {
+    /**
+     * Critical: do NOT return the original URL on failure — that path was
+     * the source of the "DB row has a `blob:` URL forever" corruption. Try
+     * to enqueue the bytes for retry and return "" so the row at least
+     * writes without poisoning `photo_url`. If we already have a pending
+     * entry for this scan, the boot-time retry will handle it.
+     */
+    console.warn("[scansRemote] upload failed; queuing for retry:", scan.id, err);
+    if (!getPendingPhotoUpload(scan.id)) {
+      try {
+        const fetched = await fetchImageBytesFromUri(u);
+        await enqueuePendingPhotoUpload({
+          scanId: scan.id,
+          userId,
+          bytes: fetched.bytes,
+          mimeType: fetched.mimeType,
+        });
+      } catch (queueErr) {
+        console.warn("[scansRemote] could not enqueue bytes for retry:", queueErr);
+      }
+    }
+    return "";
   }
 }
 

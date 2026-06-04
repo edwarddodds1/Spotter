@@ -1,12 +1,23 @@
 import { badgeMeta, type BadgeTier } from "@/constants/badges";
 import type { BadgeType, BreedRarity } from "@/types/app";
 
+/**
+ * Single source of truth for brand / surface colors. These keys MUST stay in
+ * sync with the equivalent `colors` entries in `tailwind.config.js`, because
+ * NativeWind reads from Tailwind for class-based styles while RN inline
+ * `style={{ ... }}` reads from this palette.
+ *
+ * Brand accent (`amber`) is moss green — the key name is preserved so the
+ * existing `bg-amber`, `text-amber`, etc. usages cascade automatically.
+ * Dark surface (`ink`) is a very dark grey, not pure black, so the UI reads
+ * softer and supports subtle borders / shadows.
+ */
 export const palette = {
-  ink: "#0b0b0b",
+  ink: "#171717",
   paper: "#f7f4ed",
-  amber: "#BA7517",
-  card: "#151515",
-  border: "#2a2a2a",
+  amber: "#4a7c4a",
+  card: "#1f1f1f",
+  border: "#2e2e2e",
   muted: "#9e9b94",
   white: "#ffffff",
 };
@@ -59,3 +70,27 @@ export const breedProfileAccent = {
   heroOverlay: "rgba(0,0,0,0.45)",
   heroOverlayBottom: "rgba(0,0,0,0.65)",
 };
+
+/**
+ * Leaderboard medal colors (gold / silver / bronze) for ranks 1, 2, 3.
+ *
+ * Silver gets a brighter shade in dark mode because the canonical metallic
+ * grey (`#a3a3a3`) reads as muddy against the very-dark-grey ink surface;
+ * `#e2e8f0` (slate-200) keeps the metal feel while staying legible. Gold and
+ * bronze are tuned to remain saturated in both modes.
+ */
+export const medalColorsLight: Record<1 | 2 | 3, string> = {
+  1: "#f5b301",
+  2: "#a3a3a3",
+  3: "#b87333",
+};
+
+export const medalColorsDark: Record<1 | 2 | 3, string> = {
+  1: "#facc15",
+  2: "#e2e8f0",
+  3: "#d4a373",
+};
+
+export function medalColorForRank(rank: 1 | 2 | 3, isDark: boolean): string {
+  return (isDark ? medalColorsDark : medalColorsLight)[rank];
+}

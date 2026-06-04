@@ -1,0 +1,71 @@
+{
+  "ok": [
+    {
+      "id": "golden-retriever",
+      "license": "CC0",
+      "source": "https://commons.wikimedia.org/wiki/File:Golden_Retriever_puppy_(3813393).jpg"
+    },
+    {
+      "id": "labradoodle",
+      "license": "CC BY 3.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Labradoodle-puppy.jpg"
+    },
+    {
+      "id": "jack-russell-terrier",
+      "license": "Public domain",
+      "source": "https://commons.wikimedia.org/wiki/File:Szczenie_Jack_Russell_Terrier3.jpg"
+    },
+    {
+      "id": "miniature-schnauzer",
+      "license": "CC0",
+      "source": "https://commons.wikimedia.org/wiki/File:White_miniature_schnauzer_puppy_with_a_tennisball_on_sand.jpg"
+    },
+    {
+      "id": "pug",
+      "license": "Public domain",
+      "source": "https://commons.wikimedia.org/wiki/File:Black_pug.jpg"
+    },
+    {
+      "id": "pomeranian",
+      "license": "CC BY 3.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Pomeranian_Dog_-_Kolkata_2011-10-31_6415.JPG"
+    },
+    {
+      "id": "yorkshire-terrier",
+      "license": "CC0",
+      "source": "https://commons.wikimedia.org/wiki/File:Dog_coat_colour_genetics_-_Yorkshire_Terrier_(Golddust).png"
+    },
+    {
+      "id": "bull-terrier",
+      "license": "Public domain",
+      "source": "https://commons.wikimedia.org/wiki/File:Pitbull_terrier_americano.JPG"
+    },
+    {
+      "id": "greyhound",
+      "license": "Public domain",
+      "source": "https://commons.wikimedia.org/wiki/File:Greyhound_nor1-tb.jpg"
+    },
+    {
+      "id": "basset-hound",
+      "license": "Public domain",
+      "source": "https://commons.wikimedia.org/wiki/File:Basset_hound_puppies_x.JPG"
+    },
+    {
+      "id": "vizsla",
+      "license": "Public domain",
+      "source": "https://commons.wikimedia.org/wiki/File:Vizslas.jpg"
+    },
+    {
+      "id": "irish-wolfhound",
+      "license": "CC BY 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Irish_Wolfhound_Puppy_taking_a_nap.jpg"
+    },
+    {
+      "id": "xoloitzcuintli",
+      "license": "CC BY 2.0",
+      "source": "https://commons.wikimedia.org/wiki/File:Xoloitzcuintli_-_GCH_Bayshore_Georgio_Armani_06_(16584768035).jpg"
+    }
+  ],
+  "skipped": [],
+  "failed": []
+}

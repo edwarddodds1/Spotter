@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { View } from "react-native";
 
 import { badgeMeta } from "@/constants/badges";
-import { badgeTierColors } from "@/constants/theme";
+import { badgeTierColors, palette } from "@/constants/theme";
 import type { BadgeType } from "@/types/app";
 
 const LOCKED_RING = "#a3a3a3";
@@ -79,7 +79,7 @@ export function BadgeMedallion({
             width: LOCK,
             height: LOCK,
             borderRadius: LOCK / 2,
-            backgroundColor: "#0b0b0b",
+            backgroundColor: palette.ink,
             alignItems: "center",
             justifyContent: "center",
             borderWidth: 2,
